@@ -8,9 +8,11 @@ if (BACKEND_URL) {
   axios.defaults.baseURL = BACKEND_URL;
 }
 
-// Helper to format uploaded file URLs
-export function getFullMediaUrl(path) {
-  if (!path) return '';
+// Helper to format uploaded file URLs safely with image fallback
+export function getFullMediaUrl(path, fallbackSeed = 'User') {
+  if (!path) {
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fallbackSeed)}`;
+  }
   if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
     return path;
   }

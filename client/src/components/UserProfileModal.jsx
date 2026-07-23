@@ -4,6 +4,7 @@ import {
   Image as ImageIcon, Video, FileText, Globe, Calendar, Key, Loader2 
 } from 'lucide-react';
 import axios from 'axios';
+import { getFullMediaUrl } from '../apiConfig';
 
 export default function UserProfileModal({ currentUser, profileUser, onClose, onUpdateUser }) {
   // Always default to profileUser if provided, or currentUser
@@ -78,6 +79,9 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
     }
   };
 
+  const displayAvatar = getFullMediaUrl(editing ? avatar : targetUser?.avatar, targetUser?.username || 'user');
+  const displayCover = getFullMediaUrl(editing ? coverPhoto : targetUser?.coverPhoto, 'cover');
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
       <div className="w-full max-w-2xl h-[85vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-white">
@@ -101,7 +105,7 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
         {/* Cover Photo Header */}
         <div className="h-44 relative bg-slate-800 group">
           <img
-            src={editing ? coverPhoto : (targetUser?.coverPhoto || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80')}
+            src={displayCover || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80'}
             alt="Cover"
             className="w-full h-full object-cover"
           />
@@ -123,7 +127,7 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
           <div className="absolute -bottom-10 left-6 flex items-end gap-4">
             <div className="relative group">
               <img
-                src={editing ? avatar : (targetUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${targetUser?.username}`)}
+                src={displayAvatar}
                 alt="Avatar"
                 className="w-24 h-24 rounded-full border-4 border-slate-900 bg-slate-800 object-cover shadow-2xl"
               />

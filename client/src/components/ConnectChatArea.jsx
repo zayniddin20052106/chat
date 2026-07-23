@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import VoiceNoteRecorder from './VoiceNoteRecorder';
+import { getFullMediaUrl } from '../apiConfig';
 
 const REACTION_EMOJIS = ['👍', '❤️', '🔥', '👏', '😂', '😮', '🚀', '💯'];
 
@@ -128,6 +129,8 @@ export default function ConnectChatArea({
     );
   }
 
+  const activeChatAvatar = getFullMediaUrl(activeChat.avatar, activeChat.name);
+
   return (
     <main
       onDragOver={handleDragOver}
@@ -151,7 +154,7 @@ export default function ConnectChatArea({
 
           <div className="flex items-center gap-3 cursor-pointer" onClick={onOpenProfileModal}>
             <div className="relative">
-              <img src={activeChat.avatar} alt={activeChat.name} className="w-10 h-10 rounded-full object-cover border border-slate-700 bg-slate-800" />
+              <img src={activeChatAvatar} alt={activeChat.name} className="w-10 h-10 rounded-full object-cover border border-slate-700 bg-slate-800" />
               <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
             </div>
             <div>
@@ -205,13 +208,14 @@ export default function ConnectChatArea({
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-repeat" style={{ backgroundImage: `radial-gradient(circle, rgba(51, 65, 85, 0.15) 1px, transparent 1px)`, backgroundSize: '16px 16px' }}>
         {messages.map((msg) => {
           const isMe = msg.senderId === currentUser?.id || msg.senderId === currentUser?._id;
+          const senderAvatar = getFullMediaUrl(msg.senderAvatar, msg.senderName);
           return (
             <div
               key={msg._id || msg.id}
               className={`flex gap-2 max-w-[85%] sm:max-w-[75%] ${isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
             >
               {!isMe && (
-                <img src={msg.senderAvatar} alt={msg.senderName} className="w-8 h-8 rounded-full object-cover shrink-0 mt-1" />
+                <img src={senderAvatar} alt={msg.senderName} className="w-8 h-8 rounded-full object-cover shrink-0 mt-1" />
               )}
 
               <div className="group relative">
@@ -241,7 +245,7 @@ export default function ConnectChatArea({
                   {/* Voice Note Player */}
                   {msg.voiceNote && (
                     <div className="flex items-center gap-3 p-2 bg-black/10 dark:bg-white/10 rounded-xl mb-2">
-                      <audio src={msg.voiceNote.fileUrl} controls className="h-8 max-w-[200px]" />
+                      <audio src={getFullMediaUrl(msg.voiceNote.fileUrl)} controls className="h-8 max-w-[200px]" />
                       <span className="text-[10px] opacity-80 font-mono">{msg.voiceNote.duration || 0}s</span>
                     </div>
                   )}
@@ -249,33 +253,36 @@ export default function ConnectChatArea({
                   {/* Attachments Display */}
                   {msg.attachments && msg.attachments.length > 0 && (
                     <div className="space-y-2 mb-2">
-                      {msg.attachments.map((att, i) => (
-                        <div key={i} className="rounded-xl overflow-hidden bg-black/10">
-                          {att.fileType === 'image' && (
-                            <img
-                              src={att.fileUrl}
-                              alt={att.fileName}
-                              className="max-h-72 w-full object-cover rounded-xl cursor-pointer hover:scale-[1.01] transition-transform"
-                              onClick={() => window.open(att.fileUrl, '_blank')}
-                            />
-                          )}
-                          {att.fileType === 'video' && (
-                            <video src={att.fileUrl} controls className="max-h-72 w-full rounded-xl" />
-                          )}
-                          {att.fileType !== 'image' && att.fileType !== 'video' && (
-                            <a
-                              href={att.fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex items-center gap-2 p-3 bg-black/20 hover:bg-black/30 rounded-xl text-xs transition-colors"
-                            >
-                              <FileText className="w-5 h-5 text-blue-300 shrink-0" />
-                              <span className="font-medium truncate">{att.fileName}</span>
-                              <Download className="w-4 h-4 ml-auto shrink-0" />
-                            </a>
-                          )}
-                        </div>
-                      ))}
+                      {msg.attachments.map((att, i) => {
+                        const fileFullUrl = getFullMediaUrl(att.fileUrl);
+                        return (
+                          <div key={i} className="rounded-xl overflow-hidden bg-black/10">
+                            {att.fileType === 'image' && (
+                              <img
+                                src={fileFullUrl}
+                                alt={att.fileName}
+                                className="max-h-72 w-full object-cover rounded-xl cursor-pointer hover:scale-[1.01] transition-transform"
+                                onClick={() => window.open(fileFullUrl, '_blank')}
+                              />
+                            )}
+                            {att.fileType === 'video' && (
+                              <video src={fileFullUrl} controls className="max-h-72 w-full rounded-xl" />
+                            )}
+                            {att.fileType !== 'image' && att.fileType !== 'video' && (
+                              <a
+                                href={fileFullUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-2 p-3 bg-black/20 hover:bg-black/30 rounded-xl text-xs transition-colors"
+                              >
+                                <FileText className="w-5 h-5 text-blue-300 shrink-0" />
+                                <span className="font-medium truncate">{att.fileName}</span>
+                                <Download className="w-4 h-4 ml-auto shrink-0" />
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -366,7 +373,7 @@ export default function ConnectChatArea({
           {attachments.map((att, i) => (
             <div key={i} className="relative flex items-center gap-2 p-1.5 bg-white dark:bg-slate-800 border border-slate-700 rounded-xl text-xs shrink-0 shadow-sm">
               {att.fileType === 'image' ? (
-                <img src={att.fileUrl} alt={att.fileName} className="w-8 h-8 rounded-lg object-cover" />
+                <img src={getFullMediaUrl(att.fileUrl)} alt={att.fileName} className="w-8 h-8 rounded-lg object-cover" />
               ) : (
                 <FileText className="w-5 h-5 text-blue-400" />
               )}
@@ -383,7 +390,7 @@ export default function ConnectChatArea({
         </div>
       )}
 
-      {/* Mobile-Friendly Composer Input Bar (Always Visible) */}
+      {/* Mobile-Friendly Composer Input Bar */}
       <div className="p-3 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 flex items-center gap-2 shrink-0 z-30 shadow-2xl">
         {showVoiceRecorder ? (
           <VoiceNoteRecorder

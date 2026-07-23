@@ -4,6 +4,7 @@ import {
   ShieldCheck, Sun, Moon, LogOut, Plus, UserPlus, CheckCheck, Sparkles 
 } from 'lucide-react';
 import axios from 'axios';
+import { getFullMediaUrl } from '../apiConfig';
 
 export default function ConnectSidebar({
   currentUser,
@@ -63,7 +64,7 @@ export default function ConnectSidebar({
         >
           <div className="relative">
             <img
-              src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.username}`}
+              src={getFullMediaUrl(currentUser?.avatar, currentUser?.username || 'me')}
               alt={currentUser?.fullName}
               className="w-10 h-10 rounded-full border border-gray-200 dark:border-slate-700 object-cover bg-blue-100 dark:bg-slate-800"
             />
@@ -163,13 +164,13 @@ export default function ConnectSidebar({
               <div
                 key={u._id}
                 onClick={() => {
-                  setActiveChat({ id: u._id, name: u.fullName, username: u.username, type: 'private', avatar: u.avatar, userId: u.userId, bio: u.bio });
+                  setActiveChat({ id: u._id, name: u.fullName, username: u.username, type: 'private', avatar: getFullMediaUrl(u.avatar, u.username), userId: u.userId, bio: u.bio });
                   setSearchQuery('');
                   setSearchResults([]);
                 }}
                 className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors"
               >
-                <img src={u.avatar} alt={u.fullName} className="w-10 h-10 rounded-full object-cover" />
+                <img src={getFullMediaUrl(u.avatar, u.username)} alt={u.fullName} className="w-10 h-10 rounded-full object-cover" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-xs text-slate-900 dark:text-white truncate">{u.fullName}</span>
@@ -185,17 +186,18 @@ export default function ConnectSidebar({
             {/* Render Groups & Channels */}
             {filteredGroups.map((group) => {
               const isSelected = activeChat?.id === group._id;
+              const groupAvatar = getFullMediaUrl(group.avatar, group.name);
               return (
                 <div
                   key={group._id}
-                  onClick={() => setActiveChat({ id: group._id, name: group.name, type: group.type, avatar: group.avatar, description: group.description, inviteCode: group.inviteCode })}
+                  onClick={() => setActiveChat({ id: group._id, name: group.name, type: group.type, avatar: groupAvatar, description: group.description, inviteCode: group.inviteCode })}
                   className={`flex items-center gap-3 p-3 cursor-pointer transition-colors ${
                     isSelected
                       ? 'bg-blue-50 dark:bg-slate-800 border-l-4 border-blue-500'
                       : 'hover:bg-gray-50 dark:hover:bg-slate-800/50'
                   }`}
                 >
-                  <img src={group.avatar} alt={group.name} className="w-11 h-11 rounded-full object-cover" />
+                  <img src={groupAvatar} alt={group.name} className="w-11 h-11 rounded-full object-cover" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
                       <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate">{group.name}</h4>
@@ -210,10 +212,11 @@ export default function ConnectSidebar({
             {/* Render Direct Users */}
             {filteredUsers.map((user) => {
               const isSelected = activeChat?.id === user._id && activeChat?.type === 'private';
+              const userAvatar = getFullMediaUrl(user.avatar, user.username);
               return (
                 <div
                   key={user._id}
-                  onClick={() => setActiveChat({ id: user._id, name: user.fullName, username: user.username, type: 'private', avatar: user.avatar, userId: user.userId, bio: user.bio })}
+                  onClick={() => setActiveChat({ id: user._id, name: user.fullName, username: user.username, type: 'private', avatar: userAvatar, userId: user.userId, bio: user.bio })}
                   className={`flex items-center gap-3 p-3 cursor-pointer transition-colors ${
                     isSelected
                       ? 'bg-blue-50 dark:bg-slate-800 border-l-4 border-blue-500'
@@ -221,7 +224,7 @@ export default function ConnectSidebar({
                   }`}
                 >
                   <div className="relative">
-                    <img src={user.avatar} alt={user.fullName} className="w-11 h-11 rounded-full object-cover" />
+                    <img src={userAvatar} alt={user.fullName} className="w-11 h-11 rounded-full object-cover" />
                     <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
                   </div>
                   <div className="flex-1 min-w-0">
