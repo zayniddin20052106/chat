@@ -12,6 +12,7 @@ import ConnectAdminPanel from './components/ConnectAdminPanel';
 import NewChatModal from './components/NewChatModal';
 import PWAInstallModal from './components/PWAInstallModal';
 import { playMessageSound } from './soundHelper';
+import { getFullMediaUrl } from './apiConfig';
 
 let socket;
 
@@ -88,13 +89,40 @@ export default function App() {
     fetchInitialData();
 
     socket.on('receive_message', (msg) => {
-      setMessages((prev) => [...prev, msg]);
+      setMessages((prev) => {
+        if (prev.some(m => m._id === msg._id)) return prev;
+        return [...prev, msg];
+      });
 
       // Play notification chime sound for every incoming message
       playMessageSound();
 
+      const myId = currentUser._id || currentUser.id;
+      const isMe = msg.senderId === myId;
+
+      if (!isMe && msg.senderId) {
+        setUsers((prevUsers) => {
+          const senderId = msg.senderId;
+          const exists = prevUsers.find(u => u._id === senderId || u.id === senderId);
+          if (exists) {
+            const others = prevUsers.filter(u => u._id !== senderId && u.id !== senderId);
+            return [exists, ...others];
+          } else {
+            const newSender = {
+              _id: senderId,
+              id: senderId,
+              fullName: msg.senderName || 'ConnectUser',
+              username: msg.senderUsername || 'user',
+              avatar: msg.senderAvatar,
+              userId: msg.senderUserId || 'CX000000',
+              bio: ''
+            };
+            return [newSender, ...prevUsers];
+          }
+        });
+      }
+
       // Trigger Native Push Notification if user is in background or tab is minimized
-      const isMe = msg.senderId === currentUser._id || msg.senderId === currentUser.id;
       if (!isMe && 'Notification' in window && Notification.permission === 'granted') {
         if (document.hidden || window.innerWidth < 768) {
           const notificationTitle = `${msg.senderName} (ConnectX)`;
@@ -180,6 +208,26 @@ export default function App() {
     }
   };
 
+  const handleSelectUserChat = (targetUserChat) => {
+    setActiveChat(targetUserChat);
+    setUsers((prevUsers) => {
+      const exists = prevUsers.some(u => u._id === targetUserChat.id || u.id === targetUserChat.id);
+      if (!exists) {
+        const newContact = {
+          _id: targetUserChat.id,
+          id: targetUserChat.id,
+          fullName: targetUserChat.name,
+          username: targetUserChat.username,
+          avatar: targetUserChat.avatar,
+          userId: targetUserChat.userId,
+          bio: targetUserChat.bio || ''
+        };
+        return [newContact, ...prevUsers];
+      }
+      return prevUsers;
+    });
+  };
+
   const fetchMessages = async (chatId, chatType) => {
     try {
       const token = localStorage.getItem('connectx_token');
@@ -235,18 +283,16 @@ export default function App() {
       setActiveCall({
         isIncoming: false,
         to: userToCallId,
-        callerName: activeChat.name,
-        callerAvatar: activeChat.avatar,
+        callerName: activeChat?.name,
+        callerAvatar: activeChat?.avatar,
         isVideoCall
       });
     } catch (err) {
-      alert('Camera / Microphone access error');
+      alert('Could not access microphone/camera for call');
     }
   };
 
-  // WebRTC Accept Incoming Call
   const handleAcceptCall = async () => {
-    if (!activeCall) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: activeCall.isVideoCall,
@@ -329,9 +375,8 @@ export default function App() {
   const handleAddReaction = (messageId, emoji) => {
     socket.emit('add_reaction', {
       messageId,
-      emoji,
       userId: currentUser._id || currentUser.id,
-      username: currentUser.username
+      emoji
     });
   };
 
@@ -341,129 +386,149 @@ export default function App() {
   };
 
   const handleOpenChatProfile = () => {
-    setProfileModalUser(activeChat || currentUser);
-    setShowUserProfileModal(true);
+    if (activeChat && activeChat.type === 'private') {
+      const targetUserObj = users.find(u => (u._id === activeChat.id || u.id === activeChat.id)) || {
+        _id: activeChat.id,
+        fullName: activeChat.name,
+        username: activeChat.username,
+        avatar: activeChat.avatar,
+        userId: activeChat.userId,
+        bio: activeChat.bio
+      };
+      setProfileModalUser(targetUserObj);
+      setShowUserProfileModal(true);
+    } else {
+      handleOpenMyProfile();
+    }
   };
 
   const handleLogout = () => {
     localStorage.removeItem('connectx_token');
     localStorage.removeItem('connectx_user');
     setCurrentUser(null);
-    setActiveChat(null);
   };
 
+  if (!currentUser) {
+    return (
+      <ConnectAuthModal
+        onAuthSuccess={(user, token) => {
+          localStorage.setItem('connectx_token', token);
+          localStorage.setItem('connectx_user', JSON.stringify(user));
+          setCurrentUser(user);
+        }}
+      />
+    );
+  }
+
   return (
-    <div className="w-screen h-[100dvh] overflow-hidden flex flex-col bg-slate-950 font-sans text-slate-100">
-      {!currentUser ? (
-        <ConnectAuthModal onLoginSuccess={(user) => setCurrentUser(user)} />
-      ) : (
-        <div className="flex-1 flex overflow-hidden w-full h-full relative">
-          {/* Left Sidebar */}
-          <div className={`${activeChat ? 'hidden md:flex' : 'w-full md:w-80 lg:w-96'} shrink-0 h-full`}>
-            <ConnectSidebar
-              currentUser={currentUser}
-              users={users}
-              groups={groups}
-              activeChat={activeChat}
-              setActiveChat={setActiveChat}
-              activeTab={activeTab}
-              setActiveTab={(tab) => {
-                setActiveTab(tab);
-                if (tab === 'friends') setShowFriendsManager(true);
-              }}
-              darkMode={darkMode}
-              setDarkMode={setDarkMode}
-              onOpenNewChatModal={() => setShowNewChatModal(true)}
-              onOpenAdminPanel={() => setShowAdminPanel(true)}
-              onOpenProfileModal={handleOpenMyProfile}
-              onLogout={handleLogout}
-            />
-          </div>
-
-          {/* Main Chat Window */}
-          <div className={`${activeChat ? 'w-full flex-1 flex' : 'hidden md:flex flex-1'} h-full flex-col`}>
-            <ConnectChatArea
-              currentUser={currentUser}
-              activeChat={activeChat}
-              messages={messages}
-              onSendMessage={handleSendMessage}
-              onEditMessage={() => {}}
-              onDeleteMessage={() => {}}
-              onAddReaction={handleAddReaction}
-              onStartCall={handleStartCall}
-              onOpenProfileModal={handleOpenChatProfile}
-              onBackToChats={() => setActiveChat(null)}
-            />
-          </div>
-
-          {/* Mobile PWA Download / Install App Modal */}
-          {showPWAInstallModal && (
-            <PWAInstallModal
-              onClose={() => {
-                setShowPWAInstallModal(false);
-                localStorage.setItem('connectx_pwa_dismissed', 'true');
-              }}
-            />
-          )}
-
-          {/* Modals & WebRTC Call Overlay */}
-          {activeCall && (
-            <WebRTCCallModal
-              currentUser={currentUser}
-              activeCall={activeCall}
-              onAcceptCall={handleAcceptCall}
-              onEndCall={handleEndCall}
-              localStream={localStream}
-              remoteStream={remoteStream}
-            />
-          )}
-
-          {showFriendsManager && (
-            <FriendsManager
-              currentUser={currentUser}
-              onStartDirectChat={(chat) => setActiveChat(chat)}
-              onClose={() => setShowFriendsManager(false)}
-            />
-          )}
-
-          {showUserProfileModal && (
-            <UserProfileModal
-              currentUser={currentUser}
-              profileUser={profileModalUser}
-              onClose={() => setShowUserProfileModal(false)}
-              onUpdateUser={(updated) => {
-                setCurrentUser(updated);
-                localStorage.setItem('connectx_user', JSON.stringify(updated));
-              }}
-            />
-          )}
-
-          {showAdminPanel && (
-            <ConnectAdminPanel
-              currentUser={currentUser}
-              onClose={() => setShowAdminPanel(false)}
-            />
-          )}
-
-          {showNewChatModal && (
-            <NewChatModal
-              currentUser={currentUser}
-              onClose={() => setShowNewChatModal(false)}
-              onCreated={(newGroup) => {
-                setGroups([...groups, newGroup]);
-                setActiveChat({
-                  id: newGroup._id,
-                  name: newGroup.name,
-                  type: newGroup.type,
-                  avatar: newGroup.avatar,
-                  description: newGroup.description,
-                  inviteCode: newGroup.inviteCode
-                });
-              }}
-            />
-          )}
+    <div className={`w-screen h-screen flex flex-col ${darkMode ? 'dark' : ''}`}>
+      <div className="flex-1 flex overflow-hidden w-full h-full relative">
+        {/* Left Sidebar */}
+        <div className={`${activeChat ? 'hidden md:flex' : 'w-full md:w-80 lg:w-96'} shrink-0 h-full`}>
+          <ConnectSidebar
+            currentUser={currentUser}
+            users={users}
+            groups={groups}
+            activeChat={activeChat}
+            setActiveChat={setActiveChat}
+            onSelectUserChat={handleSelectUserChat}
+            activeTab={activeTab}
+            setActiveTab={(tab) => {
+              setActiveTab(tab);
+              if (tab === 'friends') setShowFriendsManager(true);
+            }}
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            onOpenNewChatModal={() => setShowNewChatModal(true)}
+            onOpenAdminPanel={() => setShowAdminPanel(true)}
+            onOpenProfileModal={handleOpenMyProfile}
+            onLogout={handleLogout}
+          />
         </div>
-      )}
+
+        {/* Main Chat Window */}
+        <div className={`${activeChat ? 'w-full flex-1 flex' : 'hidden md:flex flex-1'} h-full flex-col`}>
+          <ConnectChatArea
+            currentUser={currentUser}
+            activeChat={activeChat}
+            messages={messages}
+            onSendMessage={handleSendMessage}
+            onEditMessage={() => {}}
+            onDeleteMessage={() => {}}
+            onAddReaction={handleAddReaction}
+            onStartCall={handleStartCall}
+            onOpenProfileModal={handleOpenChatProfile}
+            onBackToChats={() => setActiveChat(null)}
+          />
+        </div>
+
+        {/* Mobile PWA Download / Install App Modal */}
+        {showPWAInstallModal && (
+          <PWAInstallModal
+            onClose={() => {
+              setShowPWAInstallModal(false);
+              localStorage.setItem('connectx_pwa_dismissed', 'true');
+            }}
+          />
+        )}
+
+        {/* Modals & WebRTC Call Overlay */}
+        {activeCall && (
+          <WebRTCCallModal
+            currentUser={currentUser}
+            activeCall={activeCall}
+            onAcceptCall={handleAcceptCall}
+            onEndCall={handleEndCall}
+            localStream={localStream}
+            remoteStream={remoteStream}
+          />
+        )}
+
+        {showFriendsManager && (
+          <FriendsManager
+            currentUser={currentUser}
+            onStartDirectChat={(chat) => handleSelectUserChat(chat)}
+            onClose={() => setShowFriendsManager(false)}
+          />
+        )}
+
+        {showUserProfileModal && (
+          <UserProfileModal
+            currentUser={currentUser}
+            profileUser={profileModalUser}
+            onClose={() => setShowUserProfileModal(false)}
+            onUpdateUser={(updated) => {
+              setCurrentUser(updated);
+              localStorage.setItem('connectx_user', JSON.stringify(updated));
+            }}
+          />
+        )}
+
+        {showAdminPanel && (
+          <ConnectAdminPanel
+            currentUser={currentUser}
+            onClose={() => setShowAdminPanel(false)}
+          />
+        )}
+
+        {showNewChatModal && (
+          <NewChatModal
+            currentUser={currentUser}
+            onClose={() => setShowNewChatModal(false)}
+            onCreated={(newGroup) => {
+              setGroups([...groups, newGroup]);
+              setActiveChat({
+                id: newGroup._id,
+                name: newGroup.name,
+                type: newGroup.type,
+                avatar: newGroup.avatar,
+                description: newGroup.description,
+                inviteCode: newGroup.inviteCode
+              });
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }

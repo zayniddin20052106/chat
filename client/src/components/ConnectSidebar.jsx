@@ -12,6 +12,7 @@ export default function ConnectSidebar({
   groups,
   activeChat,
   setActiveChat,
+  onSelectUserChat,
   activeTab,
   setActiveTab,
   darkMode,
@@ -52,6 +53,25 @@ export default function ConnectSidebar({
     u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (u.userId && u.userId.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const handleUserClick = (u) => {
+    const userChat = {
+      id: u._id || u.id,
+      name: u.fullName,
+      username: u.username,
+      type: 'private',
+      avatar: getFullMediaUrl(u.avatar, u.username),
+      userId: u.userId,
+      bio: u.bio
+    };
+    if (onSelectUserChat) {
+      onSelectUserChat(userChat);
+    } else {
+      setActiveChat(userChat);
+    }
+    setSearchQuery('');
+    setSearchResults([]);
+  };
 
   return (
     <aside className="w-full md:w-80 lg:w-96 flex flex-col h-full bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800/80 shrink-0 transition-colors duration-200 select-none">
@@ -163,11 +183,7 @@ export default function ConnectSidebar({
             {searchResults.map((u) => (
               <div
                 key={u._id}
-                onClick={() => {
-                  setActiveChat({ id: u._id, name: u.fullName, username: u.username, type: 'private', avatar: getFullMediaUrl(u.avatar, u.username), userId: u.userId, bio: u.bio });
-                  setSearchQuery('');
-                  setSearchResults([]);
-                }}
+                onClick={() => handleUserClick(u)}
                 className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors"
               >
                 <img src={getFullMediaUrl(u.avatar, u.username)} alt={u.fullName} className="w-10 h-10 rounded-full object-cover" />
@@ -211,12 +227,12 @@ export default function ConnectSidebar({
 
             {/* Render Direct Users */}
             {filteredUsers.map((user) => {
-              const isSelected = activeChat?.id === user._id && activeChat?.type === 'private';
+              const isSelected = activeChat?.id === (user._id || user.id) && activeChat?.type === 'private';
               const userAvatar = getFullMediaUrl(user.avatar, user.username);
               return (
                 <div
-                  key={user._id}
-                  onClick={() => setActiveChat({ id: user._id, name: user.fullName, username: user.username, type: 'private', avatar: userAvatar, userId: user.userId, bio: user.bio })}
+                  key={user._id || user.id}
+                  onClick={() => handleUserClick(user)}
                   className={`flex items-center gap-3 p-3 cursor-pointer transition-colors ${
                     isSelected
                       ? 'bg-blue-50 dark:bg-slate-800 border-l-4 border-blue-500'
