@@ -1,70 +1,85 @@
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
+const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
+const dotenv = require('dotenv');
 
-const { connectDB, isMongoConnected, messagesStore, usersStore, groupsStore, notificationsStore } = require('./db');
+dotenv.config();
+
+const { 
+  connectDB, isMongoConnected, 
+  usersStore, chatsStore, messagesStore, groupsStore, channelsStore 
+} = require('./db');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE']
-  }
-});
 
-// Middleware
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Enable CORS for separated Vercel frontend / Render backend
+app.use(cors({
+  origin: '*',
+  credentials: true
+}));
 
-// Static uploads route
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve static uploaded media files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ConnectX API Routes
+// Connect Database (MongoDB or Fallback Local Store)
+connectDB();
+
+// API Routes
 app.use('/api/connect/auth', require('./routes/connectAuth'));
 app.use('/api/connect/search', require('./routes/connectSearch'));
 app.use('/api/connect/friends', require('./routes/connectFriends'));
-app.use('/api/messages', require('./routes/messages'));
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/groups', require('./routes/groups'));
+app.use('/api/messages', require('./routes/messages'));
+app.use('/api/assignments', require('./routes/assignments'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/upload', require('./routes/upload'));
 
-// Serve Vite static production build if available
-const clientBuildPath = path.join(__dirname, '../client/dist');
-if (require('fs').existsSync(clientBuildPath)) {
-  app.use(express.static(clientBuildPath));
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/socket.io')) {
-      return next();
-    }
-    res.sendFile(path.join(clientBuildPath, 'index.html'));
-  });
-}
+// Serve Vite Production Frontend in single-domain deployments
+const clientDistPath = path.join(__dirname, '../client/dist');
+app.use(express.static(clientDistPath));
 
-// Track connected socket sessions and WebRTC active calls
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+    return next();
+  }
+  res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
+    if (err) {
+      res.send('ConnectX Platform Server is Running. Frontend dist directory not found.');
+    }
+  });
+});
+
+// Socket.io Real-Time Engine Setup
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+
 const onlineSockets = new Map(); // userId -> socketId
 
 io.on('connection', (socket) => {
   console.log('⚡ ConnectX socket connected:', socket.id);
 
   socket.on('user_online', ({ userId, username }) => {
-    onlineSockets.set(userId, socket.id);
-    io.emit('online_users_update', Array.from(onlineSockets.keys()));
+    if (userId) {
+      onlineSockets.set(userId, socket.id);
+      io.emit('online_users_update', Array.from(onlineSockets.keys()));
+    }
   });
 
   socket.on('join_chat', ({ chatId }) => {
     socket.join(chatId);
   });
 
-  socket.on('leave_chat', ({ chatId }) => {
-    socket.leave(chatId);
-  });
-
-  // Real-time Chat Messaging
   socket.on('send_message', (data) => {
     try {
       const { senderId, senderName, senderUsername, senderAvatar, senderUserId, recipientId, groupId, channelId, text, voiceNote, attachments, replyTo } = data;
@@ -75,16 +90,14 @@ io.on('connection', (socket) => {
         senderUsername,
         senderAvatar,
         senderUserId,
-        recipientId: recipientId || null,
-        groupId: groupId || null,
-        channelId: channelId || null,
-        text: text || '',
-        voiceNote: voiceNote || null,
-        attachments: attachments || [],
-        reactions: [],
-        replyTo: replyTo || null,
-        isEdited: false,
-        isDeleted: false
+        recipientId,
+        groupId,
+        channelId,
+        text,
+        voiceNote,
+        attachments,
+        replyTo,
+        reactions: []
       });
 
       if (groupId) {
@@ -95,23 +108,52 @@ io.on('connection', (socket) => {
         io.emit('receive_message', savedMsg);
       }
     } catch (err) {
-      console.error('Message save error:', err);
+      console.error('Send message socket error:', err);
     }
   });
 
-  // Message Reactions
-  socket.on('add_reaction', ({ messageId, emoji, userId, username }) => {
-    const msg = messagesStore.findById(messageId);
-    if (msg) {
-      let reactions = msg.reactions || [];
-      reactions = reactions.filter(r => !(r.userId === userId && r.emoji === emoji));
-      reactions.push({ emoji, userId, username });
-      const updated = messagesStore.updateOne(messageId, { reactions });
-      io.emit('message_reaction_updated', updated);
+  socket.on('add_reaction', ({ messageId, userId, emoji }) => {
+    try {
+      const msg = messagesStore.findById(messageId);
+      if (msg) {
+        let reactions = msg.reactions || [];
+        const existingIdx = reactions.findIndex(r => r.userId === userId && r.emoji === emoji);
+        if (existingIdx > -1) {
+          reactions.splice(existingIdx, 1);
+        } else {
+          reactions.push({ userId, emoji });
+        }
+        messagesStore.updateOne(messageId, { reactions });
+        const updatedMsg = messagesStore.findById(messageId);
+        io.emit('message_reaction_updated', updatedMsg);
+      }
+    } catch (e) {
+      console.error('Add reaction socket error:', e);
     }
   });
 
-  // WebRTC Signaling: Voice & Video Call
+  // Real-time typing indicators
+  socket.on('typing_start', ({ senderId, recipientId, groupId, channelId, username, fullName }) => {
+    if (groupId) {
+      socket.to(groupId).emit('user_typing_start', { senderId, groupId, username, fullName });
+    } else if (channelId) {
+      socket.to(channelId).emit('user_typing_start', { senderId, channelId, username, fullName });
+    } else if (recipientId) {
+      io.emit('user_typing_start', { senderId, recipientId, username, fullName });
+    }
+  });
+
+  socket.on('typing_stop', ({ senderId, recipientId, groupId, channelId }) => {
+    if (groupId) {
+      socket.to(groupId).emit('user_typing_stop', { senderId, groupId });
+    } else if (channelId) {
+      socket.to(channelId).emit('user_typing_stop', { senderId, channelId });
+    } else if (recipientId) {
+      io.emit('user_typing_stop', { senderId, recipientId });
+    }
+  });
+
+  // WebRTC Signaling Handlers
   socket.on('call_user', ({ userToCall, signalData, from, callerName, callerAvatar, isVideoCall }) => {
     const targetSocketId = onlineSockets.get(userToCall);
     if (targetSocketId) {
@@ -146,14 +188,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('typing', ({ chatId, username }) => {
-    socket.to(chatId).emit('user_typing', { chatId, username });
-  });
-
-  socket.on('stop_typing', ({ chatId }) => {
-    socket.to(chatId).emit('user_stop_typing', { chatId });
-  });
-
   socket.on('disconnect', () => {
     for (let [uid, sid] of onlineSockets.entries()) {
       if (sid === socket.id) {
@@ -169,7 +203,6 @@ async function seedConnectXData() {
   try {
     const existingGroups = groupsStore.get();
     if (existingGroups.length === 0) {
-      // Seed Default Global Channel
       groupsStore.insertOne({
         name: 'ConnectX Official Announcements',
         description: 'Official product updates, WebRTC video calling releases & community news.',
@@ -178,26 +211,18 @@ async function seedConnectXData() {
         type: 'public_channel',
         creatorId: 'system',
         inviteCode: 'CXNEWS',
-        members: [],
-        admins: ['system'],
-        pinnedMessages: []
+        members: ['system'],
+        admins: ['system']
       });
-
-      console.log('🌱 ConnectX default channels initialized!');
     }
   } catch (err) {
     console.error('Seed error:', err);
   }
 }
 
+seedConnectXData();
+
 const PORT = process.env.PORT || 5001;
-
-async function startServer() {
-  await connectDB();
-  await seedConnectXData();
-  server.listen(PORT, () => {
-    console.log(`🚀 ConnectX Platform Server running on http://localhost:${PORT}`);
-  });
-}
-
-startServer();
+server.listen(PORT, () => {
+  console.log(`🚀 ConnectX Platform Server running on http://localhost:${PORT}`);
+});

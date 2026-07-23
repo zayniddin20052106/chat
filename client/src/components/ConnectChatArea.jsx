@@ -14,6 +14,8 @@ export default function ConnectChatArea({
   currentUser,
   activeChat,
   messages,
+  typingUser,
+  socket,
   onSendMessage,
   onEditMessage,
   onDeleteMessage,
@@ -33,13 +35,51 @@ export default function ConnectChatArea({
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, typingUser]);
+
+  const emitTypingStop = () => {
+    if (socket && activeChat && currentUser) {
+      socket.emit('typing_stop', {
+        senderId: currentUser._id || currentUser.id,
+        recipientId: activeChat.type === 'private' ? activeChat.id : null,
+        groupId: activeChat.type === 'group' || activeChat.type === 'course' ? activeChat.id : null,
+        channelId: activeChat.type === 'public_channel' || activeChat.type === 'private_channel' ? activeChat.id : null
+      });
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setInputText(val);
+
+    if (socket && activeChat && currentUser) {
+      const payload = {
+        senderId: currentUser._id || currentUser.id,
+        fullName: currentUser.fullName,
+        username: currentUser.username,
+        recipientId: activeChat.type === 'private' ? activeChat.id : null,
+        groupId: activeChat.type === 'group' || activeChat.type === 'course' ? activeChat.id : null,
+        channelId: activeChat.type === 'public_channel' || activeChat.type === 'private_channel' ? activeChat.id : null
+      };
+
+      socket.emit('typing_start', payload);
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        emitTypingStop();
+      }, 2500);
+    }
+  };
 
   const handleSend = () => {
     if (!inputText.trim() && attachments.length === 0) return;
+
+    emitTypingStop();
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     if (editingMessage) {
       onEditMessage(editingMessage._id, inputText);
@@ -65,6 +105,7 @@ export default function ConnectChatArea({
   };
 
   const handleVoiceNoteSend = (voiceData) => {
+    emitTypingStop();
     onSendMessage({
       text: '',
       voiceNote: voiceData,
@@ -130,6 +171,7 @@ export default function ConnectChatArea({
   }
 
   const activeChatAvatar = getFullMediaUrl(activeChat.avatar, activeChat.name);
+  const isTypingActive = !!typingUser;
 
   return (
     <main
@@ -159,7 +201,9 @@ export default function ConnectChatArea({
                 alt={activeChat.name}
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shrink-0 border border-slate-700 bg-slate-800"
               />
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
+              <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 border-2 border-white dark:border-slate-900 rounded-full ${
+                isTypingActive ? 'bg-emerald-400 animate-ping' : 'bg-emerald-500'
+              }`}></span>
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
@@ -170,8 +214,16 @@ export default function ConnectChatArea({
                   </span>
                 )}
               </div>
-              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 capitalize truncate">
-                {activeChat.type === 'private' ? 'Online' : activeChat.type}
+              <p className="text-[11px] sm:text-xs truncate">
+                {isTypingActive ? (
+                  <span className="text-emerald-500 dark:text-emerald-400 font-bold flex items-center gap-1 animate-pulse">
+                    <span>{activeChat.type === 'private' ? 'typing...' : `${typingUser.fullName || 'Someone'} is typing...`}</span>
+                  </span>
+                ) : (
+                  <span className="text-slate-500 dark:text-slate-400 capitalize">
+                    {activeChat.type === 'private' ? 'Online' : activeChat.type}
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -343,6 +395,22 @@ export default function ConnectChatArea({
             </div>
           );
         })}
+
+        {/* Telegram-style Animated Typing Bubble Indicator */}
+        {isTypingActive && (
+          <div className="flex gap-2 max-w-[75%] mr-auto animate-fade-in items-center">
+            <img src={activeChatAvatar} alt={activeChat.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+            <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-tl-none flex items-center gap-1.5 shadow-sm">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold mr-1">
+                {activeChat.type === 'private' ? `${activeChat.name} is typing` : `${typingUser.fullName || 'Someone'} is typing`}
+              </span>
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"></span>
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+            </div>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -433,7 +501,7 @@ export default function ConnectChatArea({
             <input
               type="text"
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder={uploading ? 'Uploading media...' : 'Type a message...'}
               className="flex-1 min-w-0 py-2.5 px-3 bg-gray-100 dark:bg-slate-800 border border-transparent dark:border-slate-700/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"

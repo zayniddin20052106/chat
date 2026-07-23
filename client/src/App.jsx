@@ -28,6 +28,7 @@ export default function App() {
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [activeTab, setActiveTab] = useState('chats');
+  const [typingUsers, setTypingUsers] = useState({});
 
   // WebRTC Calling State
   const [activeCall, setActiveCall] = useState(null);
@@ -139,6 +140,24 @@ export default function App() {
 
     socket.on('message_reaction_updated', (updatedMsg) => {
       setMessages((prev) => prev.map(m => m._id === updatedMsg._id ? updatedMsg : m));
+    });
+
+    // Real-time typing status listeners
+    socket.on('user_typing_start', ({ senderId, recipientId, groupId, channelId, fullName }) => {
+      const chatId = groupId || channelId || senderId;
+      setTypingUsers((prev) => ({
+        ...prev,
+        [chatId]: { senderId, fullName }
+      }));
+    });
+
+    socket.on('user_typing_stop', ({ senderId, recipientId, groupId, channelId }) => {
+      const chatId = groupId || channelId || senderId;
+      setTypingUsers((prev) => {
+        const updated = { ...prev };
+        delete updated[chatId];
+        return updated;
+      });
     });
 
     // WebRTC Signaling Listeners
@@ -452,6 +471,8 @@ export default function App() {
             currentUser={currentUser}
             activeChat={activeChat}
             messages={messages}
+            typingUser={activeChat ? typingUsers[activeChat.id] : null}
+            socket={socket}
             onSendMessage={handleSendMessage}
             onEditMessage={() => {}}
             onDeleteMessage={() => {}}
