@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { 
   X, ShieldCheck, Camera, Edit3, Save, 
-  Image as ImageIcon, Video, FileText, Globe, Calendar, Key, Loader2 
+  Image as ImageIcon, Video, FileText, Globe, Calendar, Key, Loader2, Check 
 } from 'lucide-react';
 import axios from 'axios';
 import { getFullMediaUrl } from '../apiConfig';
@@ -9,17 +9,19 @@ import { getFullMediaUrl } from '../apiConfig';
 export default function UserProfileModal({ currentUser, profileUser, onClose, onUpdateUser }) {
   // Always default to profileUser if provided, or currentUser
   const targetUser = profileUser || currentUser;
-  const isSelf = targetUser?._id === currentUser?._id || targetUser?.id === currentUser?.id || targetUser?.userId === currentUser?.userId;
+  const isSelf = !profileUser || targetUser?._id === currentUser?._id || targetUser?.id === currentUser?.id || targetUser?.userId === currentUser?.userId;
 
   const [activeTab, setActiveTab] = useState('profile');
   const [mediaTab, setMediaTab] = useState('photos');
 
-  const [fullName, setFullName] = useState(currentUser?.fullName || '');
-  const [bio, setBio] = useState(currentUser?.bio || '');
-  const [avatar, setAvatar] = useState(currentUser?.avatar || '');
-  const [coverPhoto, setCoverPhoto] = useState(currentUser?.coverPhoto || '');
-  const [country, setCountry] = useState(currentUser?.country || 'United States');
-  const [editing, setEditing] = useState(false);
+  const [fullName, setFullName] = useState(targetUser?.fullName || currentUser?.fullName || '');
+  const [bio, setBio] = useState(targetUser?.bio || currentUser?.bio || '');
+  const [avatar, setAvatar] = useState(targetUser?.avatar || currentUser?.avatar || '');
+  const [coverPhoto, setCoverPhoto] = useState(targetUser?.coverPhoto || currentUser?.coverPhoto || '');
+  const [country, setCountry] = useState(targetUser?.country || currentUser?.country || 'United States');
+  
+  // Default to true for self so editing options & inputs are immediately visible
+  const [editing, setEditing] = useState(isSelf);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -30,11 +32,21 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     setUploadingImage(true);
+
+    // Instant local preview via FileReader
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        if (type === 'avatar') setAvatar(event.target.result);
+        else if (type === 'cover') setCoverPhoto(event.target.result);
+      }
+    };
+    reader.readAsDataURL(file);
+
     try {
+      const formData = new FormData();
+      formData.append('file', file);
       const token = localStorage.getItem('connectx_token');
       const res = await axios.post('/api/upload', formData, {
         headers: {
@@ -46,13 +58,36 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
       const uploadedUrl = res.data.fileUrl;
       if (type === 'avatar') {
         setAvatar(uploadedUrl);
+        // Automatically save avatar update to backend profile
+        await autoSaveProfile({ avatar: uploadedUrl });
       } else if (type === 'cover') {
         setCoverPhoto(uploadedUrl);
+        await autoSaveProfile({ coverPhoto: uploadedUrl });
       }
     } catch (err) {
-      alert('Failed to upload image');
+      console.log('Upload error fallback to local preview:', err);
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  const autoSaveProfile = async (updatesObj) => {
+    try {
+      const token = localStorage.getItem('connectx_token');
+      const res = await axios.put('/api/connect/auth/profile', {
+        fullName: updatesObj.fullName || fullName,
+        bio: updatesObj.bio !== undefined ? updatesObj.bio : bio,
+        avatar: updatesObj.avatar || avatar,
+        coverPhoto: updatesObj.coverPhoto || coverPhoto,
+        country: updatesObj.country || country
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (onUpdateUser && res.data?.user) {
+        onUpdateUser(res.data.user);
+      }
+    } catch (e) {
+      console.error('Auto save profile error:', e);
     }
   };
 
@@ -70,7 +105,6 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
         headers: { Authorization: `Bearer ${token}` }
       });
       onUpdateUser(res.data.user);
-      setEditing(false);
       alert('Profile updated successfully!');
     } catch (err) {
       alert('Failed to update profile');
@@ -79,11 +113,11 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
     }
   };
 
-  const displayAvatar = getFullMediaUrl(editing ? avatar : targetUser?.avatar, targetUser?.username || 'user');
-  const displayCover = getFullMediaUrl(editing ? coverPhoto : targetUser?.coverPhoto, 'cover');
+  const displayAvatar = getFullMediaUrl(avatar || targetUser?.avatar, targetUser?.username || 'user');
+  const displayCover = getFullMediaUrl(coverPhoto || targetUser?.coverPhoto, 'cover');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in text-white">
       <div className="w-full max-w-2xl h-[85vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-white">
         
         {/* Hidden File Inputs for Device Image Upload */}
@@ -110,12 +144,13 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
             className="w-full h-full object-cover"
           />
 
-          {isSelf && editing && (
+          {isSelf && (
             <button
+              type="button"
               onClick={() => coverInputRef.current?.click()}
-              className="absolute top-4 left-4 p-2 bg-slate-900/80 hover:bg-slate-900 text-xs font-semibold rounded-xl flex items-center gap-1.5 backdrop-blur-md shadow-lg"
+              className="absolute top-4 left-4 p-2 bg-slate-900/80 hover:bg-slate-900 text-xs font-bold rounded-xl flex items-center gap-1.5 backdrop-blur-md shadow-lg border border-slate-700"
             >
-              <Camera className="w-4 h-4 text-blue-400" /> Upload Cover Photo
+              <Camera className="w-4 h-4 text-blue-400" /> Change Cover Photo
             </button>
           )}
 
@@ -125,19 +160,17 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
 
           {/* User Avatar Overlay */}
           <div className="absolute -bottom-10 left-6 flex items-end gap-4">
-            <div className="relative group">
+            <div className="relative group cursor-pointer" onClick={() => isSelf && avatarInputRef.current?.click()}>
               <img
                 src={displayAvatar}
                 alt="Avatar"
                 className="w-24 h-24 rounded-full border-4 border-slate-900 bg-slate-800 object-cover shadow-2xl"
               />
-              {isSelf && editing && (
-                <button
-                  onClick={() => avatarInputRef.current?.click()}
-                  className="absolute inset-0 bg-black/60 rounded-full flex flex-col items-center justify-center text-[10px] font-bold text-white transition-opacity"
-                >
-                  <Camera className="w-5 h-5 mb-0.5 text-blue-400" /> Change
-                </button>
+              {isSelf && (
+                <div className="absolute inset-0 bg-black/60 rounded-full flex flex-col items-center justify-center text-[10px] font-bold text-white transition-opacity">
+                  <Camera className="w-5 h-5 mb-0.5 text-blue-400 animate-pulse" />
+                  <span>Rasm Tanlash</span>
+                </div>
               )}
               <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
             </div>
@@ -160,12 +193,15 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
             </div>
           </div>
 
-          {isSelf && !editing && (
+          {isSelf && (
             <button
-              onClick={() => setEditing(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md"
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={uploadingImage}
+              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md disabled:opacity-50"
             >
-              <Edit3 className="w-4 h-4" /> Edit Profile
+              <Camera className="w-4 h-4 text-white" />
+              <span>📷 Rasm Qo'yish (Change Avatar)</span>
             </button>
           )}
         </div>
@@ -178,7 +214,7 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
               activeTab === 'profile' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400'
             }`}
           >
-            About & Bio
+            About & Profile Settings
           </button>
           <button
             onClick={() => setActiveTab('media')}
@@ -194,20 +230,20 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
         <div className="flex-1 p-6 overflow-y-auto">
           {uploadingImage && (
             <div className="p-3 mb-4 bg-blue-950/60 border border-blue-800/80 rounded-xl text-xs text-blue-400 flex items-center gap-2 font-medium">
-              <Loader2 className="w-4 h-4 animate-spin" /> Uploading image from your device...
+              <Loader2 className="w-4 h-4 animate-spin" /> Rasm qurilmangizdan yuklanmoqda...
             </div>
           )}
 
           {activeTab === 'profile' ? (
-            editing ? (
+            isSelf ? (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">Full Name</label>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Ismingiz (Full Name)</label>
                   <input
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white"
+                    className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
@@ -217,48 +253,21 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
                     rows={2}
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white"
+                    className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
-                {/* Avatar Photo Upload Trigger */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">Profile Photo (Rasm tanlash)</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={avatar}
-                      onChange={(e) => setAvatar(e.target.value)}
-                      placeholder="Image URL or pick file..."
-                      className="flex-1 p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white"
-                    />
+                {/* Direct File Trigger Button for Profile Photo */}
+                <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-700/60 space-y-2">
+                  <label className="block text-xs font-semibold text-slate-300">Profil Rasmi (Qurilmadan rasm almashtirish)</label>
+                  <div className="flex items-center gap-3">
+                    <img src={displayAvatar} alt="preview" className="w-12 h-12 rounded-full object-cover border border-slate-600 bg-slate-900" />
                     <button
                       type="button"
                       onClick={() => avatarInputRef.current?.click()}
-                      className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5"
+                      className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md"
                     >
-                      <Camera className="w-4 h-4 text-blue-400" /> Pick Photo
-                    </button>
-                  </div>
-                </div>
-
-                {/* Cover Photo Upload Trigger */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">Cover Photo (Orqa fon rasmi)</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={coverPhoto}
-                      onChange={(e) => setCoverPhoto(e.target.value)}
-                      placeholder="Image URL or pick file..."
-                      className="flex-1 p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => coverInputRef.current?.click()}
-                      className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5"
-                    >
-                      <Camera className="w-4 h-4 text-blue-400" /> Pick Photo
+                      <Camera className="w-4 h-4" /> Galereyadan yangi rasm tanlash
                     </button>
                   </div>
                 </div>
@@ -267,15 +276,9 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
                   <button
                     onClick={handleSave}
                     disabled={saving || uploadingImage}
-                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 font-semibold rounded-xl text-xs shadow-md disabled:opacity-50"
+                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5"
                   >
-                    Save Changes
-                  </button>
-                  <button
-                    onClick={() => setEditing(false)}
-                    className="px-5 py-3 bg-slate-800 hover:bg-slate-700 font-semibold rounded-xl text-xs"
-                  >
-                    Cancel
+                    <Save className="w-4 h-4" /> Save Profile Changes
                   </button>
                 </div>
               </div>
