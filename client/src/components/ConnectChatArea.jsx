@@ -140,33 +140,37 @@ export default function ConnectChatArea({
         dragOver ? 'ring-4 ring-blue-500/50 bg-blue-50/20 dark:bg-blue-950/20' : ''
       }`}
     >
-      {/* Header Bar with Mobile Back Button */}
-      <header className="p-3.5 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between shadow-xs select-none shrink-0">
-        <div className="flex items-center gap-2.5">
+      {/* Responsive Header Bar with Mobile Back Button */}
+      <header className="p-3 sm:p-3.5 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between shadow-xs select-none shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Mobile Back Button */}
           <button
             onClick={onBackToChats}
-            className="md:hidden p-2 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all"
+            className="md:hidden p-1.5 sm:p-2 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all shrink-0"
             title="Back to Chats"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center gap-3 cursor-pointer" onClick={onOpenProfileModal}>
-            <div className="relative">
-              <img src={activeChatAvatar} alt={activeChat.name} className="w-10 h-10 rounded-full object-cover border border-slate-700 bg-slate-800" />
-              <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
+          <div className="flex items-center gap-2.5 sm:gap-3 cursor-pointer min-w-0" onClick={onOpenProfileModal}>
+            <div className="relative shrink-0">
+              <img
+                src={activeChatAvatar}
+                alt={activeChat.name}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shrink-0 border border-slate-700 bg-slate-800"
+              />
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
             </div>
-            <div>
-              <div className="flex items-center gap-1.5 font-bold text-sm text-slate-900 dark:text-white">
-                <span>{activeChat.name}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                <span className="truncate">{activeChat.name}</span>
                 {activeChat.userId && (
-                  <span className="font-mono px-1.5 py-0.2 bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded">
+                  <span className="font-mono px-1.5 py-0.2 bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 text-[9px] sm:text-[10px] font-bold rounded shrink-0">
                     {activeChat.userId}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 capitalize truncate">
                 {activeChat.type === 'private' ? 'Online' : activeChat.type}
               </p>
             </div>
@@ -174,30 +178,30 @@ export default function ConnectChatArea({
         </div>
 
         {/* WebRTC Calling Action Buttons */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 shrink-0">
           {activeChat.type === 'private' && (
             <>
               <button
                 onClick={() => onStartCall(activeChat.id, false)}
                 title="Start Voice Call"
-                className="p-2 rounded-xl text-slate-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-500 transition-all"
+                className="p-2 rounded-xl text-slate-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-500 transition-all shrink-0"
               >
-                <Phone className="w-4.5 h-4.5" />
+                <Phone className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               </button>
 
               <button
                 onClick={() => onStartCall(activeChat.id, true)}
                 title="Start Video Call"
-                className="p-2 rounded-xl text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-500 transition-all"
+                className="p-2 rounded-xl text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-500 transition-all shrink-0"
               >
-                <Video className="w-4.5 h-4.5" />
+                <Video className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               </button>
             </>
           )}
 
           <button
             onClick={onOpenProfileModal}
-            className="p-2 rounded-xl text-slate-400 hover:bg-slate-800 transition-all text-xs font-semibold"
+            className="p-2 rounded-xl text-slate-400 hover:bg-slate-800 transition-all text-xs font-semibold shrink-0"
           >
             Info
           </button>
@@ -205,32 +209,32 @@ export default function ConnectChatArea({
       </header>
 
       {/* Messages Feed */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-repeat" style={{ backgroundImage: `radial-gradient(circle, rgba(51, 65, 85, 0.15) 1px, transparent 1px)`, backgroundSize: '16px 16px' }}>
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 bg-repeat" style={{ backgroundImage: `radial-gradient(circle, rgba(51, 65, 85, 0.15) 1px, transparent 1px)`, backgroundSize: '16px 16px' }}>
         {messages.map((msg) => {
           const isMe = msg.senderId === currentUser?.id || msg.senderId === currentUser?._id;
           const senderAvatar = getFullMediaUrl(msg.senderAvatar, msg.senderName);
           return (
             <div
               key={msg._id || msg.id}
-              className={`flex gap-2 max-w-[85%] sm:max-w-[75%] ${isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
+              className={`flex gap-2 max-w-[88%] sm:max-w-[75%] ${isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
             >
               {!isMe && (
                 <img src={senderAvatar} alt={msg.senderName} className="w-8 h-8 rounded-full object-cover shrink-0 mt-1" />
               )}
 
-              <div className="group relative">
+              <div className="group relative min-w-0">
                 {/* Bubble Container */}
                 <div
-                  className={`p-3.5 rounded-2xl shadow-sm border transition-all ${
+                  className={`p-3 sm:p-3.5 rounded-2xl shadow-sm border transition-all ${
                     isMe
                       ? 'bg-blue-600 text-white dark:bg-blue-600/90 border-blue-500 rounded-tr-none'
                       : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white border-gray-200 dark:border-slate-800 rounded-tl-none'
                   }`}
                 >
                   {!isMe && (
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-blue-400 mb-1">
-                      <span>{msg.senderName}</span>
-                      <span className="font-mono text-[9px] opacity-70">({msg.senderUserId})</span>
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-blue-400 mb-1 truncate">
+                      <span className="truncate">{msg.senderName}</span>
+                      <span className="font-mono text-[9px] opacity-70 shrink-0">({msg.senderUserId})</span>
                     </div>
                   )}
 
@@ -246,7 +250,7 @@ export default function ConnectChatArea({
                   {msg.voiceNote && (
                     <div className="flex items-center gap-3 p-2 bg-black/10 dark:bg-white/10 rounded-xl mb-2">
                       <audio src={getFullMediaUrl(msg.voiceNote.fileUrl)} controls className="h-8 max-w-[200px]" />
-                      <span className="text-[10px] opacity-80 font-mono">{msg.voiceNote.duration || 0}s</span>
+                      <span className="text-[10px] opacity-80 font-mono shrink-0">{msg.voiceNote.duration || 0}s</span>
                     </div>
                   )}
 
@@ -353,8 +357,8 @@ export default function ConnectChatArea({
       {replyToMessage && (
         <div className="px-4 py-2 bg-slate-200 dark:bg-slate-900 border-t border-slate-700 flex items-center justify-between text-xs shrink-0">
           <div className="flex items-center gap-2 truncate">
-            <Reply className="w-4 h-4 text-blue-500" />
-            <span className="font-semibold text-slate-200">Replying to {replyToMessage.senderName}:</span>
+            <Reply className="w-4 h-4 text-blue-500 shrink-0" />
+            <span className="font-semibold text-slate-200 shrink-0">Replying to {replyToMessage.senderName}:</span>
             <span className="truncate text-slate-400">{replyToMessage.text}</span>
           </div>
           <button onClick={() => setReplyToMessage(null)}><X className="w-4 h-4" /></button>
@@ -365,7 +369,7 @@ export default function ConnectChatArea({
       {(attachments.length > 0 || uploading) && (
         <div className="px-4 py-2 bg-slate-200 dark:bg-slate-900 border-t border-slate-800 flex items-center gap-2 overflow-x-auto shrink-0">
           {uploading && (
-            <div className="flex items-center gap-2 text-xs text-blue-400 font-semibold px-2 py-1 bg-blue-950/60 rounded-xl">
+            <div className="flex items-center gap-2 text-xs text-blue-400 font-semibold px-2 py-1 bg-blue-950/60 rounded-xl shrink-0">
               <Loader2 className="w-4 h-4 animate-spin" /> Uploading image...
             </div>
           )}
@@ -373,15 +377,15 @@ export default function ConnectChatArea({
           {attachments.map((att, i) => (
             <div key={i} className="relative flex items-center gap-2 p-1.5 bg-white dark:bg-slate-800 border border-slate-700 rounded-xl text-xs shrink-0 shadow-sm">
               {att.fileType === 'image' ? (
-                <img src={getFullMediaUrl(att.fileUrl)} alt={att.fileName} className="w-8 h-8 rounded-lg object-cover" />
+                <img src={getFullMediaUrl(att.fileUrl)} alt={att.fileName} className="w-8 h-8 rounded-lg object-cover shrink-0" />
               ) : (
-                <FileText className="w-5 h-5 text-blue-400" />
+                <FileText className="w-5 h-5 text-blue-400 shrink-0" />
               )}
               <span className="truncate max-w-[120px] font-medium text-slate-200">{att.fileName}</span>
               <button
                 type="button"
                 onClick={() => removeAttachment(i)}
-                className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                className="p-1 text-slate-400 hover:text-red-500 transition-colors shrink-0"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
