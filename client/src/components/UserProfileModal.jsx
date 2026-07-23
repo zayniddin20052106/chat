@@ -58,7 +58,6 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
       const uploadedUrl = res.data.fileUrl;
       if (type === 'avatar') {
         setAvatar(uploadedUrl);
-        // Automatically save avatar update to backend profile
         await autoSaveProfile({ avatar: uploadedUrl });
       } else if (type === 'cover') {
         setCoverPhoto(uploadedUrl);
@@ -117,8 +116,8 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
   const displayCover = getFullMediaUrl(coverPhoto || targetUser?.coverPhoto, 'cover');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in text-white">
-      <div className="w-full max-w-2xl h-[85vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in text-white overflow-y-auto">
+      <div className="w-full max-w-2xl max-h-[92dvh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-white my-auto">
         
         {/* Hidden File Inputs for Device Image Upload */}
         <input
@@ -137,7 +136,7 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
         />
 
         {/* Cover Photo Header */}
-        <div className="h-44 relative bg-slate-800 group">
+        <div className="h-36 sm:h-44 relative bg-slate-800 shrink-0 group">
           <img
             src={displayCover || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80'}
             alt="Cover"
@@ -148,46 +147,46 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
             <button
               type="button"
               onClick={() => coverInputRef.current?.click()}
-              className="absolute top-4 left-4 p-2 bg-slate-900/80 hover:bg-slate-900 text-xs font-bold rounded-xl flex items-center gap-1.5 backdrop-blur-md shadow-lg border border-slate-700"
+              className="absolute top-3 left-3 p-1.5 sm:p-2 bg-slate-900/80 hover:bg-slate-900 text-[11px] sm:text-xs font-bold rounded-xl flex items-center gap-1.5 backdrop-blur-md shadow-lg border border-slate-700"
             >
-              <Camera className="w-4 h-4 text-blue-400" /> Change Cover Photo
+              <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400" /> Change Cover
             </button>
           )}
 
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-black/80">
+          <button onClick={onClose} className="absolute top-3 right-3 p-1.5 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-black/80">
             <X className="w-5 h-5" />
           </button>
 
           {/* User Avatar Overlay */}
-          <div className="absolute -bottom-10 left-6 flex items-end gap-4">
+          <div className="absolute -bottom-9 left-4 sm:left-6 flex items-end gap-3">
             <div className="relative group cursor-pointer" onClick={() => isSelf && avatarInputRef.current?.click()}>
               <img
                 src={displayAvatar}
                 alt="Avatar"
-                className="w-24 h-24 rounded-full border-4 border-slate-900 bg-slate-800 object-cover shadow-2xl"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-slate-900 bg-slate-800 object-cover shadow-2xl"
               />
               {isSelf && (
-                <div className="absolute inset-0 bg-black/60 rounded-full flex flex-col items-center justify-center text-[10px] font-bold text-white transition-opacity">
-                  <Camera className="w-5 h-5 mb-0.5 text-blue-400 animate-pulse" />
-                  <span>Rasm Tanlash</span>
+                <div className="absolute inset-0 bg-black/60 rounded-full flex flex-col items-center justify-center text-[9px] sm:text-[10px] font-bold text-white transition-opacity">
+                  <Camera className="w-4 h-4 mb-0.5 text-blue-400" />
+                  <span>O'zgartirish</span>
                 </div>
               )}
-              <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
+              <span className="absolute bottom-1 right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
             </div>
           </div>
         </div>
 
         {/* User Info Header Bar */}
-        <div className="pt-12 px-6 pb-4 flex items-center justify-between border-b border-slate-800">
+        <div className="pt-10 sm:pt-12 px-4 sm:px-6 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0 border-b border-slate-800">
           <div>
-            <div className="flex items-center gap-2 text-xl font-extrabold">
-              <span>{targetUser?.fullName || targetUser?.name}</span>
-              {targetUser?.role === 'admin' && <ShieldCheck className="w-5 h-5 text-red-500" />}
+            <div className="flex items-center gap-2 text-lg sm:text-xl font-extrabold truncate">
+              <span className="truncate">{targetUser?.fullName || targetUser?.name}</span>
+              {targetUser?.role === 'admin' && <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 shrink-0" />}
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+            <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
               <span>@{targetUser?.username}</span>
               <span>•</span>
-              <span className="font-mono px-2 py-0.5 bg-blue-950 text-blue-400 font-bold rounded">
+              <span className="font-mono px-2 py-0.2 bg-blue-950 text-blue-400 font-bold rounded text-[11px]">
                 {targetUser?.userId || 'CX102938'}
               </span>
             </div>
@@ -198,19 +197,19 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
               type="button"
               onClick={() => avatarInputRef.current?.click()}
               disabled={uploadingImage}
-              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md disabled:opacity-50"
+              className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md disabled:opacity-50 shrink-0 self-start sm:self-auto"
             >
-              <Camera className="w-4 h-4 text-white" />
-              <span>📷 Rasm Qo'yish (Change Avatar)</span>
+              <Camera className="w-3.5 h-3.5 text-white" />
+              <span>📷 Rasm Qo'yish (Upload Photo)</span>
             </button>
           )}
         </div>
 
         {/* Tab Selection */}
-        <div className="flex border-b border-slate-800 px-6">
+        <div className="flex border-b border-slate-800 px-4 sm:px-6 shrink-0">
           <button
             onClick={() => setActiveTab('profile')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all ${
+            className={`py-2.5 px-3 sm:px-4 text-xs font-bold border-b-2 transition-all ${
               activeTab === 'profile' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400'
             }`}
           >
@@ -218,7 +217,7 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
           </button>
           <button
             onClick={() => setActiveTab('media')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all ${
+            className={`py-2.5 px-3 sm:px-4 text-xs font-bold border-b-2 transition-all ${
               activeTab === 'media' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400'
             }`}
           >
@@ -227,16 +226,16 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
         </div>
 
         {/* Body Content */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
           {uploadingImage && (
-            <div className="p-3 mb-4 bg-blue-950/60 border border-blue-800/80 rounded-xl text-xs text-blue-400 flex items-center gap-2 font-medium">
+            <div className="p-3 bg-blue-950/60 border border-blue-800/80 rounded-xl text-xs text-blue-400 flex items-center gap-2 font-medium">
               <Loader2 className="w-4 h-4 animate-spin" /> Rasm qurilmangizdan yuklanmoqda...
             </div>
           )}
 
           {activeTab === 'profile' ? (
             isSelf ? (
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-1">Ismingiz (Full Name)</label>
                   <input
@@ -259,24 +258,24 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
 
                 {/* Direct File Trigger Button for Profile Photo */}
                 <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-700/60 space-y-2">
-                  <label className="block text-xs font-semibold text-slate-300">Profil Rasmi (Qurilmadan rasm almashtirish)</label>
+                  <label className="block text-xs font-semibold text-slate-300">Profil Rasmi (Qurilmadan rasm tanlash)</label>
                   <div className="flex items-center gap-3">
-                    <img src={displayAvatar} alt="preview" className="w-12 h-12 rounded-full object-cover border border-slate-600 bg-slate-900" />
+                    <img src={displayAvatar} alt="preview" className="w-12 h-12 rounded-full object-cover border border-slate-600 bg-slate-900 shrink-0" />
                     <button
                       type="button"
                       onClick={() => avatarInputRef.current?.click()}
-                      className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md"
+                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shrink-0"
                     >
-                      <Camera className="w-4 h-4" /> Galereyadan yangi rasm tanlash
+                      <Camera className="w-4 h-4" /> Galereyadan Rasm Tanlash
                     </button>
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-2">
+                <div className="pt-1">
                   <button
                     onClick={handleSave}
                     disabled={saving || uploadingImage}
-                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5"
                   >
                     <Save className="w-4 h-4" /> Save Profile Changes
                   </button>
@@ -286,25 +285,25 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
               <div className="space-y-4">
                 <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-800 space-y-1">
                   <div className="text-[11px] font-bold text-slate-400 uppercase">Bio</div>
-                  <p className="text-sm text-slate-200 leading-relaxed">
+                  <p className="text-sm text-slate-200 leading-relaxed break-words">
                     {targetUser?.bio || 'Hey there! I am using ConnectX.'}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-800 flex items-center gap-3">
-                    <Globe className="w-5 h-5 text-blue-400" />
-                    <div>
+                    <Globe className="w-5 h-5 text-blue-400 shrink-0" />
+                    <div className="min-w-0">
                       <div className="text-[10px] text-slate-400 uppercase font-bold">Country</div>
-                      <div className="text-xs font-bold text-white">{targetUser?.country || 'United States'}</div>
+                      <div className="text-xs font-bold text-white truncate">{targetUser?.country || 'United States'}</div>
                     </div>
                   </div>
 
                   <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-800 flex items-center gap-3">
-                    <Key className="w-5 h-5 text-emerald-400" />
-                    <div>
+                    <Key className="w-5 h-5 text-emerald-400 shrink-0" />
+                    <div className="min-w-0">
                       <div className="text-[10px] text-slate-400 uppercase font-bold">Permanent User ID</div>
-                      <div className="text-xs font-mono font-bold text-emerald-400">{targetUser?.userId || 'CX102938'}</div>
+                      <div className="text-xs font-mono font-bold text-emerald-400 truncate">{targetUser?.userId || 'CX102938'}</div>
                     </div>
                   </div>
                 </div>
