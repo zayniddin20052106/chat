@@ -1,0 +1,27 @@
+[
+  {
+    "_id": "id_1784830260770_zr57qeatq",
+    "createdAt": "2026-07-23T18:11:00.770Z",
+    "updatedAt": "2026-07-23T18:15:42.992Z",
+    "username": "Prof_Anderson",
+    "password": "$2a$10$EdVAVMnpSFHBA9ELnwcQT.jgTC7wCIl7lokqrbV1Q7GrklhIYKxBu",
+    "role": "teacher",
+    "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=Prof_Anderson",
+    "bio": "Senior Computer Science Professor",
+    "status": "online",
+    "isBanned": false,
+    "lastSeen": "2026-07-23T18:15:42.992Z"
+  },
+  {
+    "_id": "id_1784830260771_x4zxz10e1",
+    "createdAt": "2026-07-23T18:11:00.771Z",
+    "updatedAt": "2026-07-23T18:11:00.771Z",
+    "username": "EduAdmin",
+    "password": "$2a$10$EdVAVMnpSFHBA9ELnwcQT.jgTC7wCIl7lokqrbV1Q7GrklhIYKxBu",
+    "role": "admin",
+    "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=EduAdmin",
+    "bio": "System Administrator & Coordinator",
+    "status": "online",
+    "isBanned": false
+  }
+]

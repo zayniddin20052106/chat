@@ -1,0 +1,339 @@
+import React, { useState, useRef } from 'react';
+import { 
+  X, ShieldCheck, Camera, Edit3, Save, 
+  Image as ImageIcon, Video, FileText, Globe, Calendar, Key, Loader2 
+} from 'lucide-react';
+import axios from 'axios';
+
+export default function UserProfileModal({ currentUser, profileUser, onClose, onUpdateUser }) {
+  // Always default to profileUser if provided, or currentUser
+  const targetUser = profileUser || currentUser;
+  const isSelf = targetUser?._id === currentUser?._id || targetUser?.id === currentUser?.id || targetUser?.userId === currentUser?.userId;
+
+  const [activeTab, setActiveTab] = useState('profile');
+  const [mediaTab, setMediaTab] = useState('photos');
+
+  const [fullName, setFullName] = useState(currentUser?.fullName || '');
+  const [bio, setBio] = useState(currentUser?.bio || '');
+  const [avatar, setAvatar] = useState(currentUser?.avatar || '');
+  const [coverPhoto, setCoverPhoto] = useState(currentUser?.coverPhoto || '');
+  const [country, setCountry] = useState(currentUser?.country || 'United States');
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const avatarInputRef = useRef(null);
+  const coverInputRef = useRef(null);
+
+  const handleImageFileSelect = async (e, type) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setUploadingImage(true);
+    try {
+      const token = localStorage.getItem('connectx_token');
+      const res = await axios.post('/api/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const uploadedUrl = res.data.fileUrl;
+      if (type === 'avatar') {
+        setAvatar(uploadedUrl);
+      } else if (type === 'cover') {
+        setCoverPhoto(uploadedUrl);
+      }
+    } catch (err) {
+      alert('Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('connectx_token');
+      const res = await axios.put('/api/connect/auth/profile', {
+        fullName,
+        bio,
+        avatar,
+        coverPhoto,
+        country
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      onUpdateUser(res.data.user);
+      setEditing(false);
+      alert('Profile updated successfully!');
+    } catch (err) {
+      alert('Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-2xl h-[85vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-white">
+        
+        {/* Hidden File Inputs for Device Image Upload */}
+        <input
+          type="file"
+          ref={avatarInputRef}
+          accept="image/*"
+          onChange={(e) => handleImageFileSelect(e, 'avatar')}
+          className="hidden"
+        />
+        <input
+          type="file"
+          ref={coverInputRef}
+          accept="image/*"
+          onChange={(e) => handleImageFileSelect(e, 'cover')}
+          className="hidden"
+        />
+
+        {/* Cover Photo Header */}
+        <div className="h-44 relative bg-slate-800 group">
+          <img
+            src={editing ? coverPhoto : (targetUser?.coverPhoto || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80')}
+            alt="Cover"
+            className="w-full h-full object-cover"
+          />
+
+          {isSelf && editing && (
+            <button
+              onClick={() => coverInputRef.current?.click()}
+              className="absolute top-4 left-4 p-2 bg-slate-900/80 hover:bg-slate-900 text-xs font-semibold rounded-xl flex items-center gap-1.5 backdrop-blur-md shadow-lg"
+            >
+              <Camera className="w-4 h-4 text-blue-400" /> Upload Cover Photo
+            </button>
+          )}
+
+          <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-black/80">
+            <X className="w-5 h-5" />
+          </button>
+
+          {/* User Avatar Overlay */}
+          <div className="absolute -bottom-10 left-6 flex items-end gap-4">
+            <div className="relative group">
+              <img
+                src={editing ? avatar : (targetUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${targetUser?.username}`)}
+                alt="Avatar"
+                className="w-24 h-24 rounded-full border-4 border-slate-900 bg-slate-800 object-cover shadow-2xl"
+              />
+              {isSelf && editing && (
+                <button
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="absolute inset-0 bg-black/60 rounded-full flex flex-col items-center justify-center text-[10px] font-bold text-white transition-opacity"
+                >
+                  <Camera className="w-5 h-5 mb-0.5 text-blue-400" /> Change
+                </button>
+              )}
+              <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
+            </div>
+          </div>
+        </div>
+
+        {/* User Info Header Bar */}
+        <div className="pt-12 px-6 pb-4 flex items-center justify-between border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2 text-xl font-extrabold">
+              <span>{targetUser?.fullName || targetUser?.name}</span>
+              {targetUser?.role === 'admin' && <ShieldCheck className="w-5 h-5 text-red-500" />}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+              <span>@{targetUser?.username}</span>
+              <span>•</span>
+              <span className="font-mono px-2 py-0.5 bg-blue-950 text-blue-400 font-bold rounded">
+                {targetUser?.userId || 'CX102938'}
+              </span>
+            </div>
+          </div>
+
+          {isSelf && !editing && (
+            <button
+              onClick={() => setEditing(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md"
+            >
+              <Edit3 className="w-4 h-4" /> Edit Profile
+            </button>
+          )}
+        </div>
+
+        {/* Tab Selection */}
+        <div className="flex border-b border-slate-800 px-6">
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all ${
+              activeTab === 'profile' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400'
+            }`}
+          >
+            About & Bio
+          </button>
+          <button
+            onClick={() => setActiveTab('media')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all ${
+              activeTab === 'media' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400'
+            }`}
+          >
+            Media Gallery
+          </button>
+        </div>
+
+        {/* Body Content */}
+        <div className="flex-1 p-6 overflow-y-auto">
+          {uploadingImage && (
+            <div className="p-3 mb-4 bg-blue-950/60 border border-blue-800/80 rounded-xl text-xs text-blue-400 flex items-center gap-2 font-medium">
+              <Loader2 className="w-4 h-4 animate-spin" /> Uploading image from your device...
+            </div>
+          )}
+
+          {activeTab === 'profile' ? (
+            editing ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Bio / Status</label>
+                  <textarea
+                    rows={2}
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white"
+                  />
+                </div>
+
+                {/* Avatar Photo Upload Trigger */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Profile Photo (Rasm tanlash)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={avatar}
+                      onChange={(e) => setAvatar(e.target.value)}
+                      placeholder="Image URL or pick file..."
+                      className="flex-1 p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => avatarInputRef.current?.click()}
+                      className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5"
+                    >
+                      <Camera className="w-4 h-4 text-blue-400" /> Pick Photo
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cover Photo Upload Trigger */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Cover Photo (Orqa fon rasmi)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={coverPhoto}
+                      onChange={(e) => setCoverPhoto(e.target.value)}
+                      placeholder="Image URL or pick file..."
+                      className="flex-1 p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => coverInputRef.current?.click()}
+                      className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5"
+                    >
+                      <Camera className="w-4 h-4 text-blue-400" /> Pick Photo
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleSave}
+                    disabled={saving || uploadingImage}
+                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 font-semibold rounded-xl text-xs shadow-md disabled:opacity-50"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="px-5 py-3 bg-slate-800 hover:bg-slate-700 font-semibold rounded-xl text-xs"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-800 space-y-1">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase">Bio</div>
+                  <p className="text-sm text-slate-200 leading-relaxed">
+                    {targetUser?.bio || 'Hey there! I am using ConnectX.'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-800 flex items-center gap-3">
+                    <Globe className="w-5 h-5 text-blue-400" />
+                    <div>
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">Country</div>
+                      <div className="text-xs font-bold text-white">{targetUser?.country || 'United States'}</div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-800 flex items-center gap-3">
+                    <Key className="w-5 h-5 text-emerald-400" />
+                    <div>
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">Permanent User ID</div>
+                      <div className="text-xs font-mono font-bold text-emerald-400">{targetUser?.userId || 'CX102938'}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          ) : (
+            /* Media Gallery */
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setMediaTab('photos')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${mediaTab === 'photos' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+                >
+                  Photos
+                </button>
+                <button
+                  onClick={() => setMediaTab('videos')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${mediaTab === 'videos' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+                >
+                  Videos
+                </button>
+                <button
+                  onClick={() => setMediaTab('files')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${mediaTab === 'files' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+                >
+                  Files & PDFs
+                </button>
+              </div>
+
+              <div className="p-8 text-center text-xs text-slate-500 italic border border-dashed border-slate-800 rounded-2xl">
+                No shared {mediaTab} in this chat session yet.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

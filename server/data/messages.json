@@ -1,0 +1,34 @@
+[
+  {
+    "_id": "id_1784830260772_ndkft3nsj",
+    "createdAt": "2026-07-23T18:11:00.772Z",
+    "updatedAt": "2026-07-23T18:11:00.772Z",
+    "senderId": "id_1784830260770_zr57qeatq",
+    "senderName": "Prof_Anderson",
+    "senderAvatar": "https://api.dicebear.com/7.x/bottts/svg?seed=Prof_Anderson",
+    "senderRole": "teacher",
+    "groupId": "id_1784830260771_upcj2wucn",
+    "text": "Welcome students to Computer Science 101! Please check out the Homework Hub for our first React project assignment.",
+    "attachments": [],
+    "replyTo": null,
+    "isEdited": false,
+    "isDeleted": false
+  },
+  {
+    "_id": "id_1784830849841_d0izbkyml",
+    "createdAt": "2026-07-23T18:20:49.842Z",
+    "updatedAt": "2026-07-23T18:20:49.842Z",
+    "senderId": "id_1784830260770_zr57qeatq",
+    "senderName": "Prof_Anderson",
+    "senderAvatar": "https://api.dicebear.com/7.x/bottts/svg?seed=Prof_Anderson",
+    "senderRole": "teacher",
+    "recipientId": null,
+    "groupId": null,
+    "channelId": "id_1784830260772_6obwpzzrn",
+    "text": "👏👏👏👏",
+    "attachments": [],
+    "replyTo": null,
+    "isEdited": false,
+    "isDeleted": false
+  }
+]

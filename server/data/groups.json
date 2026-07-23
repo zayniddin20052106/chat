@@ -1,0 +1,40 @@
+[
+  {
+    "_id": "id_1784830260771_upcj2wucn",
+    "createdAt": "2026-07-23T18:11:00.771Z",
+    "updatedAt": "2026-07-23T18:11:00.771Z",
+    "name": "Computer Science 101",
+    "description": "Introduction to Algorithms, Data Structures & React Framework",
+    "avatar": "https://api.dicebear.com/7.x/identicon/svg?seed=CS101",
+    "type": "course",
+    "creatorId": "id_1784830260770_zr57qeatq",
+    "teacherId": "id_1784830260770_zr57qeatq",
+    "courseCode": "CS101X",
+    "members": [
+      "id_1784830260770_zr57qeatq",
+      "id_1784830260771_x4zxz10e1"
+    ],
+    "admins": [
+      "id_1784830260770_zr57qeatq"
+    ]
+  },
+  {
+    "_id": "id_1784830260772_6obwpzzrn",
+    "createdAt": "2026-07-23T18:11:00.772Z",
+    "updatedAt": "2026-07-23T18:11:00.772Z",
+    "name": "EduChat Official Announcements",
+    "description": "Official academic announcements, semester timetables and exam schedules.",
+    "avatar": "https://api.dicebear.com/7.x/identicon/svg?seed=Announcements",
+    "type": "channel",
+    "creatorId": "id_1784830260771_x4zxz10e1",
+    "teacherId": "id_1784830260771_x4zxz10e1",
+    "courseCode": "ANNOUNCE",
+    "members": [
+      "id_1784830260770_zr57qeatq",
+      "id_1784830260771_x4zxz10e1"
+    ],
+    "admins": [
+      "id_1784830260771_x4zxz10e1"
+    ]
+  }
+]

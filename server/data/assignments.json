@@ -1,0 +1,16 @@
+[
+  {
+    "_id": "id_1784830260772_d6i7kcbii",
+    "createdAt": "2026-07-23T18:11:00.772Z",
+    "updatedAt": "2026-07-23T18:11:00.772Z",
+    "title": "React & Node.js Fullstack Project",
+    "description": "Build a responsive chat component with Socket.io integration and submit your source code PDF/zip.",
+    "courseId": "id_1784830260771_upcj2wucn",
+    "courseName": "Computer Science 101",
+    "teacherId": "id_1784830260770_zr57qeatq",
+    "teacherName": "Prof_Anderson",
+    "dueDate": "2026-07-30T18:11:00.772Z",
+    "attachments": [],
+    "submissions": []
+  }
+]

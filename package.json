@@ -1,0 +1,19 @@
+{
+  "name": "connectx-platform",
+  "version": "2.0.0",
+  "description": "ConnectX - Production-Ready Real-Time Social & Messaging Platform with WebRTC Calls",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "server": "node server/index.js",
+    "client": "npm --prefix client run dev",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build:client": "npm --prefix client install && npm --prefix client run build",
+    "build:server": "npm --prefix server install",
+    "build": "npm run build:server && npm run build:client",
+    "postinstall": "npm run build"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
