@@ -11,12 +11,72 @@ function generateUniqueId() {
   return `CX${randomNum}`;
 }
 
+// POST /api/connect/auth/login (Explicit Direct Login by Email or User ID)
+router.post('/login', async (req, res) => {
+  try {
+    const { emailOrUserId } = req.body;
+    if (!emailOrUserId || !emailOrUserId.trim()) {
+      return res.status(400).json({ error: 'Iltimos, Email yoki User ID-ni kiriting' });
+    }
+
+    const cleanInput = emailOrUserId.trim().toLowerCase();
+    const numericPart = cleanInput.replace(/\D/g, '');
+
+    let user = null;
+
+    if (db.isMongoConnected()) {
+      user = await ConnectUser.findOne({
+        $or: [
+          { email: { $regex: `^${cleanInput}$`, $options: 'i' } },
+          { userId: { $regex: `^${cleanInput}$`, $options: 'i' } },
+          { username: { $regex: `^${cleanInput}$`, $options: 'i' } },
+          ...(numericPart ? [{ userId: { $regex: numericPart, $options: 'i' } }] : [])
+        ]
+      });
+    } else {
+      user = db.usersStore.findOne(u => {
+        const uEmail = (u.email || '').toLowerCase();
+        const uUserId = (u.userId || '').toLowerCase();
+        const uUsername = (u.username || '').toLowerCase();
+
+        return (
+          uEmail === cleanInput ||
+          uUserId === cleanInput ||
+          uUsername === cleanInput ||
+          (numericPart && uUserId.includes(numericPart)) ||
+          (cleanInput.includes('@') && uEmail.startsWith(cleanInput.split('@')[0]))
+        );
+      });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'Ushbu Email yoki User ID ga tegishli akkaunt topilmadi. Iltimos, Ro\'yxatdan O\'tish bo\'limiga o\'ting.' });
+    }
+
+    if (user.isBanned) {
+      return res.status(403).json({ error: 'Sizning akkauntingiz administrator tomonidan bloklangan.' });
+    }
+
+    const userIdVal = user._id || user.id || user.userId;
+    const token = jwt.sign(
+      { id: userIdVal, userId: user.userId, email: user.email, username: user.username, role: user.role || 'user' },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    return res.json({ token, user });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Kirishda xatolik yuz berdi' });
+  }
+});
+
 // POST /api/connect/auth/google (Google / Email Login & Auto-Registration)
 router.post('/google', async (req, res) => {
   try {
     let { email, fullName, username, avatar } = req.body;
     if (!fullName && !username && !email) {
-      return res.status(400).json({ error: 'Name or email is required for login' });
+      return res.status(400).json({ error: 'Name or email is required for registration' });
     }
 
     const cleanFullName = (fullName || username || (email ? email.split('@')[0] : 'ConnectUser')).trim();
