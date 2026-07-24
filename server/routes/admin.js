@@ -2,10 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const db = require('../db');
-const User = require('../models/User');
+const ConnectUser = require('../models/ConnectUser');
 const Group = require('../models/Group');
-const Message = require('../models/Message');
-const Assignment = require('../models/Assignment');
+const ConnectMessage = require('../models/ConnectMessage');
 
 // Middleware to ensure admin role
 function requireAdmin(req, res, next) {
@@ -19,19 +18,21 @@ function requireAdmin(req, res, next) {
 router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
   try {
     if (db.isMongoConnected()) {
-      const totalUsers = await User.countDocuments();
-      const totalMessages = await Message.countDocuments();
+      const totalUsers = await ConnectUser.countDocuments();
+      const onlineUsers = await ConnectUser.countDocuments({ status: 'online' });
+      const totalMessages = await ConnectMessage.countDocuments();
       const totalGroups = await Group.countDocuments();
-      const totalAssignments = await Assignment.countDocuments();
-      return res.json({ stats: { totalUsers, totalMessages, totalGroups, totalAssignments } });
+      return res.json({ stats: { totalUsers, onlineUsers, totalMessages, totalGroups } });
     } else {
-      const totalUsers = db.usersStore.get().length;
+      const allUsers = db.usersStore.get();
+      const totalUsers = allUsers.length;
+      const onlineUsers = allUsers.filter(u => u.status === 'online').length;
       const totalMessages = db.messagesStore.get().length;
       const totalGroups = db.groupsStore.get().length;
-      const totalAssignments = db.assignmentsStore.get().length;
-      return res.json({ stats: { totalUsers, totalMessages, totalGroups, totalAssignments } });
+      return res.json({ stats: { totalUsers, onlineUsers, totalMessages, totalGroups } });
     }
   } catch (err) {
+    console.error('Fetch admin stats error:', err);
     res.status(500).json({ error: 'Failed to fetch admin stats' });
   }
 });
@@ -40,7 +41,7 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
 router.get('/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
     if (db.isMongoConnected()) {
-      const users = await User.find().select('-password').sort({ createdAt: -1 });
+      const users = await ConnectUser.find().select('-password').sort({ joinDate: -1 });
       return res.json({ users });
     } else {
       const users = db.usersStore.get().map(({ password, ...u }) => u);
@@ -62,7 +63,7 @@ router.put('/users/:id/role', authenticateToken, requireAdmin, async (req, res) 
       if (role) updates.role = role;
       if (isBanned !== undefined) updates.isBanned = isBanned;
 
-      const user = await User.findByIdAndUpdate(userId, updates, { new: true }).select('-password');
+      const user = await ConnectUser.findByIdAndUpdate(userId, updates, { new: true }).select('-password');
       return res.json({ user });
     } else {
       const updates = {};
@@ -78,18 +79,83 @@ router.put('/users/:id/role', authenticateToken, requireAdmin, async (req, res) 
   }
 });
 
-// DELETE /api/admin/messages/:id (Delete inappropriate message)
-router.delete('/messages/:id', authenticateToken, requireAdmin, async (req, res) => {
+// POST /api/admin/broadcast (Post Official Announcement to All Users)
+router.post('/broadcast', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const messageId = req.params.id;
-    if (db.isMongoConnected()) {
-      await Message.findByIdAndDelete(messageId);
-    } else {
-      db.messagesStore.deleteOne(messageId);
+    const { text, title } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Announcement message text is required' });
     }
-    return res.json({ success: true });
+
+    const io = req.app.get('io');
+    const adminUser = req.user;
+
+    // Find or create official announcements channel
+    let announcementsChannel;
+    if (db.isMongoConnected()) {
+      announcementsChannel = await Group.findOne({ courseCode: 'CX-ANNOUNCEMENTS' });
+      if (!announcementsChannel) {
+        announcementsChannel = await Group.create({
+          name: '📢 ConnectX Official Announcements',
+          description: 'Official news, system updates, and platform announcements',
+          avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=ConnectXNews',
+          type: 'public_channel',
+          creatorId: adminUser.id,
+          courseCode: 'CX-ANNOUNCEMENTS',
+          members: []
+        });
+      }
+
+      const newMsg = await ConnectMessage.create({
+        senderId: adminUser.id,
+        senderName: '📢 ConnectX Official News',
+        senderUsername: 'connectx_news',
+        senderAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=ConnectXNews',
+        senderUserId: 'CX000000',
+        channelId: announcementsChannel._id,
+        text: text.trim(),
+        createdAt: new Date()
+      });
+
+      if (io) {
+        io.emit('receive_message', newMsg);
+      }
+
+      return res.json({ message: newMsg, channel: announcementsChannel });
+    } else {
+      announcementsChannel = db.groupsStore.findOne(g => g.courseCode === 'CX-ANNOUNCEMENTS');
+      if (!announcementsChannel) {
+        announcementsChannel = db.groupsStore.insertOne({
+          name: '📢 ConnectX Official Announcements',
+          description: 'Official news, system updates, and platform announcements',
+          avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=ConnectXNews',
+          type: 'public_channel',
+          creatorId: adminUser.id,
+          courseCode: 'CX-ANNOUNCEMENTS',
+          members: []
+        });
+      }
+
+      const newMsg = db.messagesStore.insertOne({
+        senderId: adminUser.id,
+        senderName: '📢 ConnectX Official News',
+        senderUsername: 'connectx_news',
+        senderAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=ConnectXNews',
+        senderUserId: 'CX000000',
+        channelId: announcementsChannel._id || announcementsChannel.id,
+        text: text.trim(),
+        createdAt: new Date().toISOString()
+      });
+
+      if (io) {
+        io.emit('receive_message', newMsg);
+      }
+
+      return res.json({ message: newMsg, channel: announcementsChannel });
+    }
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete message' });
+    console.error('Broadcast error:', err);
+    res.status(500).json({ error: 'Broadcast announcement failed' });
   }
 });
 

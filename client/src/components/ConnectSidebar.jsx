@@ -13,6 +13,7 @@ export default function ConnectSidebar({
   activeChat,
   setActiveChat,
   onSelectUserChat,
+  unreadCounts,
   activeTab,
   setActiveTab,
   darkMode,
@@ -284,11 +285,14 @@ export default function ConnectSidebar({
 
             {/* Render Direct Users */}
             {filteredUsers.map((user) => {
-              const isSelected = activeChat?.id === (user._id || user.id) && activeChat?.type === 'private';
+              const uId = user._id || user.id;
+              const isSelected = activeChat?.id === uId && activeChat?.type === 'private';
               const userAvatar = getFullMediaUrl(user.avatar, user.username);
+              const unreadCount = unreadCounts?.[uId] || 0;
+
               return (
                 <div
-                  key={user._id || user.id}
+                  key={uId}
                   onClick={() => handleUserClick(user)}
                   className={`flex items-center gap-3 p-3 cursor-pointer transition-colors ${
                     isSelected
@@ -305,6 +309,7 @@ export default function ConnectSidebar({
                     />
                     <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
                   </div>
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
                       <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate">{user.fullName}</h4>
@@ -312,6 +317,13 @@ export default function ConnectSidebar({
                     </div>
                     <p className="text-xs text-slate-400 truncate">{user.bio || `@${user.username}`}</p>
                   </div>
+
+                  {/* Unread Messages Badge Counter */}
+                  {unreadCount > 0 && !isSelected && (
+                    <span className="px-2 py-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-extrabold text-[11px] rounded-full shadow-md animate-pulse shrink-0">
+                      {unreadCount}
+                    </span>
+                  )}
                 </div>
               );
             })}

@@ -27,6 +27,7 @@ export default function App() {
   const [groups, setGroups] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [unreadCounts, setUnreadCounts] = useState({});
   const [activeTab, setActiveTab] = useState('chats');
   const [typingUsers, setTypingUsers] = useState({});
 
@@ -108,6 +109,23 @@ export default function App() {
     }
   }, [darkMode]);
 
+  // Reset unread count & emit mark_messages_read whenever activeChat changes
+  useEffect(() => {
+    if (!activeChat || !currentUser) return;
+
+    setUnreadCounts((prev) => ({
+      ...prev,
+      [activeChat.id]: 0
+    }));
+
+    if (socket) {
+      socket.emit('mark_messages_read', {
+        chatId: activeChat.id,
+        userId: currentUser._id || currentUser.id
+      });
+    }
+  }, [activeChat]);
+
   // Connect socket.io & setup WebRTC signaling
   useEffect(() => {
     if (!currentUser) return;
@@ -137,6 +155,19 @@ export default function App() {
       const isMe = msg.senderId === myId;
 
       if (!isMe && msg.senderId) {
+        // Increment unread count badge if chat is not currently active
+        setUnreadCounts((prev) => {
+          const senderId = msg.senderId;
+          const currentActiveId = activeChat ? activeChat.id : null;
+          if (senderId !== currentActiveId) {
+            return {
+              ...prev,
+              [senderId]: (prev[senderId] || 0) + 1
+            };
+          }
+          return prev;
+        });
+
         setUsers((prevUsers) => {
           const senderId = msg.senderId;
           const exists = prevUsers.find(u => u._id === senderId || u.id === senderId);
@@ -171,6 +202,16 @@ export default function App() {
           new Notification(notificationTitle, notificationOptions);
         }
       }
+    });
+
+    socket.on('messages_read_update', ({ chatId, userId }) => {
+      setMessages((prev) => prev.map(m => {
+        const myId = currentUser._id || currentUser.id;
+        if (m.senderId === myId && (m.recipientId === chatId || m.recipientId === userId)) {
+          return { ...m, read: true, status: 'read' };
+        }
+        return m;
+      }));
     });
 
     socket.on('message_reaction_updated', (updatedMsg) => {
@@ -508,6 +549,7 @@ export default function App() {
             activeChat={activeChat}
             setActiveChat={setActiveChat}
             onSelectUserChat={handleSelectUserChat}
+            unreadCounts={unreadCounts}
             activeTab={activeTab}
             setActiveTab={(tab) => {
               setActiveTab(tab);

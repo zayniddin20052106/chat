@@ -1,68 +1,48 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const path = require('path');
-const dotenv = require('dotenv');
 
-dotenv.config();
-
-const { 
-  connectDB, isMongoConnected, 
-  usersStore, chatsStore, messagesStore, groupsStore, channelsStore 
-} = require('./db');
+const db = require('./db');
+const { connectMongo, isMongoConnected } = db;
+const { messagesStore, usersStore, groupsStore } = db;
 
 const app = express();
 const server = http.createServer(app);
 
-// Enable CORS for separated Vercel frontend / Render backend
-app.use(cors({
-  origin: '*',
-  credentials: true
-}));
+// Enable CORS
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Serve Uploaded Media Files
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+app.use('/uploads', express.static(UPLOADS_DIR));
 
-// Serve static uploaded media files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve Production Client Assets
+const CLIENT_DIST_DIR = path.join(__dirname, '../client/dist');
+app.use(express.static(CLIENT_DIST_DIR));
 
-// Connect Database (MongoDB or Fallback Local Store)
-connectDB();
-
-// API Routes
+// Attach API Routes
 app.use('/api/connect/auth', require('./routes/connectAuth'));
 app.use('/api/connect/search', require('./routes/connectSearch'));
 app.use('/api/connect/friends', require('./routes/connectFriends'));
-app.use('/api/auth', require('./routes/auth'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/messages', require('./routes/messages'));
-app.use('/api/assignments', require('./routes/assignments'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/upload', require('./routes/upload'));
 
-// Serve Vite Production Frontend in single-domain deployments
-const clientDistPath = path.join(__dirname, '../client/dist');
-app.use(express.static(clientDistPath));
-
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
-    return next();
-  }
-  res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
-    if (err) {
-      res.send('ConnectX Platform Server is Running. Frontend dist directory not found.');
-    }
-  });
-});
-
-// Socket.io Real-Time Engine Setup
+// Initialize Socket.IO Server
 const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST']
   }
 });
+
+// Expose io instance to express app for admin broadcast
+app.set('io', io);
 
 const onlineSockets = new Map(); // userId -> socketId
 
@@ -97,6 +77,7 @@ io.on('connection', (socket) => {
         voiceNote,
         attachments,
         replyTo,
+        read: false,
         reactions: []
       });
 
@@ -112,6 +93,27 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('mark_messages_read', ({ chatId, userId }) => {
+    try {
+      const allMsgs = messagesStore.get();
+      let updatedAny = false;
+
+      allMsgs.forEach(m => {
+        if (m.senderId === chatId && (m.recipientId === userId || m.recipientId === userId?.toString()) && !m.read) {
+          m.read = true;
+          updatedAny = true;
+        }
+      });
+
+      if (updatedAny) {
+        messagesStore.save(allMsgs);
+        io.emit('messages_read_update', { chatId, userId });
+      }
+    } catch (err) {
+      console.error('Mark read error:', err);
+    }
+  });
+
   socket.on('add_reaction', ({ messageId, userId, emoji }) => {
     try {
       const msg = messagesStore.findById(messageId);
@@ -123,41 +125,36 @@ io.on('connection', (socket) => {
         } else {
           reactions.push({ userId, emoji });
         }
-        messagesStore.updateOne(messageId, { reactions });
-        const updatedMsg = messagesStore.findById(messageId);
+        const updatedMsg = messagesStore.updateOne(messageId, { reactions });
         io.emit('message_reaction_updated', updatedMsg);
       }
-    } catch (e) {
-      console.error('Add reaction socket error:', e);
+    } catch (err) {
+      console.error('Reaction socket error:', err);
     }
   });
 
   // Real-time typing indicators
-  socket.on('typing_start', ({ senderId, recipientId, groupId, channelId, username, fullName }) => {
-    if (groupId) {
-      socket.to(groupId).emit('user_typing_start', { senderId, groupId, username, fullName });
-    } else if (channelId) {
-      socket.to(channelId).emit('user_typing_start', { senderId, channelId, username, fullName });
-    } else if (recipientId) {
-      io.emit('user_typing_start', { senderId, recipientId, username, fullName });
-    }
+  socket.on('typing_start', (payload) => {
+    socket.broadcast.emit('user_typing_start', payload);
   });
 
-  socket.on('typing_stop', ({ senderId, recipientId, groupId, channelId }) => {
-    if (groupId) {
-      socket.to(groupId).emit('user_typing_stop', { senderId, groupId });
-    } else if (channelId) {
-      socket.to(channelId).emit('user_typing_stop', { senderId, channelId });
-    } else if (recipientId) {
-      io.emit('user_typing_stop', { senderId, recipientId });
-    }
+  socket.on('typing_stop', (payload) => {
+    socket.broadcast.emit('user_typing_stop', payload);
   });
 
-  // WebRTC Signaling Handlers
+  // WebRTC Video & Voice Signaling Events
   socket.on('call_user', ({ userToCall, signalData, from, callerName, callerAvatar, isVideoCall }) => {
     const targetSocketId = onlineSockets.get(userToCall);
     if (targetSocketId) {
       io.to(targetSocketId).emit('incoming_call', {
+        signal: signalData,
+        from,
+        callerName,
+        callerAvatar,
+        isVideoCall
+      });
+    } else {
+      io.emit('incoming_call', {
         signal: signalData,
         from,
         callerName,
@@ -171,6 +168,8 @@ io.on('connection', (socket) => {
     const targetSocketId = onlineSockets.get(to);
     if (targetSocketId) {
       io.to(targetSocketId).emit('call_accepted', signal);
+    } else {
+      io.emit('call_accepted', signal);
     }
   });
 
@@ -178,6 +177,8 @@ io.on('connection', (socket) => {
     const targetSocketId = onlineSockets.get(to);
     if (targetSocketId) {
       io.to(targetSocketId).emit('ice_candidate', candidate);
+    } else {
+      io.emit('ice_candidate', candidate);
     }
   });
 
@@ -185,13 +186,15 @@ io.on('connection', (socket) => {
     const targetSocketId = onlineSockets.get(to);
     if (targetSocketId) {
       io.to(targetSocketId).emit('call_ended');
+    } else {
+      io.emit('call_ended');
     }
   });
 
   socket.on('disconnect', () => {
-    for (let [uid, sid] of onlineSockets.entries()) {
-      if (sid === socket.id) {
-        onlineSockets.delete(uid);
+    for (let [uId, sId] of onlineSockets.entries()) {
+      if (sId === socket.id) {
+        onlineSockets.delete(uId);
         break;
       }
     }
@@ -199,30 +202,19 @@ io.on('connection', (socket) => {
   });
 });
 
-async function seedConnectXData() {
-  try {
-    const existingGroups = groupsStore.get();
-    if (existingGroups.length === 0) {
-      groupsStore.insertOne({
-        name: 'ConnectX Official Announcements',
-        description: 'Official product updates, WebRTC video calling releases & community news.',
-        avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=ConnectXOfficial',
-        coverPhoto: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&w=1200&q=80',
-        type: 'public_channel',
-        creatorId: 'system',
-        inviteCode: 'CXNEWS',
-        members: ['system'],
-        admins: ['system']
-      });
-    }
-  } catch (err) {
-    console.error('Seed error:', err);
-  }
+// Fallback HTML5 Client Routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(CLIENT_DIST_DIR, 'index.html'));
+});
+
+// Start Server
+const PORT = process.env.PORT || 5001;
+
+async function startApp() {
+  await connectMongo();
+  server.listen(PORT, () => {
+    console.log(`🚀 ConnectX Platform Server running on http://localhost:${PORT}`);
+  });
 }
 
-seedConnectXData();
-
-const PORT = process.env.PORT || 5001;
-server.listen(PORT, () => {
-  console.log(`🚀 ConnectX Platform Server running on http://localhost:${PORT}`);
-});
+startApp();
