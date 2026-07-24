@@ -294,26 +294,36 @@ export default function App() {
     }
   };
 
-  // WebRTC Start Call Trigger
+  // WebRTC Start Call Trigger (HD Quality Camera Stream)
   const handleStartCall = async (userToCallId, isVideoCall) => {
     try {
+      const videoConstraints = isVideoCall ? {
+        width: { ideal: 1280, max: 1920 },
+        height: { ideal: 720, max: 1080 },
+        facingMode: 'user'
+      } : false;
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: isVideoCall,
-        audio: true
+        video: videoConstraints,
+        audio: { echoCancellation: true, noiseSuppression: true }
       });
       setLocalStream(stream);
 
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' }
+        ]
       });
       peerConnectionRef.current = pc;
 
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-      const remote = new MediaStream();
-      setRemoteStream(remote);
       pc.ontrack = (event) => {
-        event.streams[0].getTracks().forEach(track => remote.addTrack(track));
+        if (event.streams && event.streams[0]) {
+          setRemoteStream(event.streams[0]);
+        }
       };
 
       pc.onicecandidate = (event) => {
@@ -348,23 +358,33 @@ export default function App() {
 
   const handleAcceptCall = async () => {
     try {
+      const videoConstraints = activeCall.isVideoCall ? {
+        width: { ideal: 1280, max: 1920 },
+        height: { ideal: 720, max: 1080 },
+        facingMode: 'user'
+      } : false;
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: activeCall.isVideoCall,
-        audio: true
+        video: videoConstraints,
+        audio: { echoCancellation: true, noiseSuppression: true }
       });
       setLocalStream(stream);
 
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' }
+        ]
       });
       peerConnectionRef.current = pc;
 
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-      const remote = new MediaStream();
-      setRemoteStream(remote);
       pc.ontrack = (event) => {
-        event.streams[0].getTracks().forEach(track => remote.addTrack(track));
+        if (event.streams && event.streams[0]) {
+          setRemoteStream(event.streams[0]);
+        }
       };
 
       pc.onicecandidate = (event) => {
@@ -380,7 +400,7 @@ export default function App() {
       socket.emit('answer_call', { to: activeCall.from, signal: answer });
       setActiveCall({ ...activeCall, isIncoming: false });
     } catch (err) {
-      alert('Failed to accept WebRTC call');
+      alert('Failed to accept WebRTC video call');
     }
   };
 
