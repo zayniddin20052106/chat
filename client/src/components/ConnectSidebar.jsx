@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Search, MessageSquare, Users, Megaphone, PhoneCall, 
-  ShieldCheck, Sun, Moon, LogOut, Plus, UserPlus, CheckCheck, Sparkles 
+  ShieldCheck, Sun, Moon, LogOut, Plus, UserPlus, CheckCheck, Sparkles, Loader2 
 } from 'lucide-react';
 import axios from 'axios';
 import { getFullMediaUrl } from '../apiConfig';
@@ -47,11 +47,15 @@ export default function ConnectSidebar({
     }
   };
 
-  const filteredGroups = groups.filter(g => g.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const queryClean = searchQuery.toLowerCase().trim();
+  const numericQuery = searchQuery.replace(/\D/g, '');
+
+  const filteredGroups = groups.filter(g => g.name?.toLowerCase().includes(queryClean));
   const filteredUsers = users.filter(u => 
-    u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (u.userId && u.userId.toLowerCase().includes(searchQuery.toLowerCase()))
+    u.username?.toLowerCase().includes(queryClean) ||
+    u.fullName?.toLowerCase().includes(queryClean) ||
+    u.userId?.toLowerCase().includes(queryClean) ||
+    (numericQuery && u.userId?.toLowerCase().includes(numericQuery))
   );
 
   const handleUserClick = (u) => {
@@ -82,21 +86,21 @@ export default function ConnectSidebar({
           onClick={onOpenProfileModal}
           className="flex items-center gap-3 cursor-pointer p-1.5 rounded-2xl hover:bg-gray-200/50 dark:hover:bg-slate-800 transition-all"
         >
-          <div className="relative">
+          <div className="relative shrink-0">
             <img
               src={getFullMediaUrl(currentUser?.avatar, currentUser?.username || 'me')}
               alt={currentUser?.fullName}
-              className="w-10 h-10 rounded-full border border-gray-200 dark:border-slate-700 object-cover bg-blue-100 dark:bg-slate-800"
+              className="w-10 h-10 rounded-full border border-gray-200 dark:border-slate-700 object-cover bg-blue-100 dark:bg-slate-800 shrink-0"
             />
             <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 font-bold text-sm text-gray-900 dark:text-white truncate">
-              <span>{currentUser?.fullName}</span>
+              <span className="truncate">{currentUser?.fullName}</span>
               {currentUser?.role === 'admin' && <ShieldCheck className="w-3.5 h-3.5 text-red-500 shrink-0" />}
             </div>
             <div className="flex items-center gap-1 text-[11px]">
-              <span className="font-mono px-1.5 py-0.2 bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 font-bold rounded">
+              <span className="font-mono px-1.5 py-0.2 bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 font-bold rounded shrink-0">
                 {currentUser?.userId || 'CX000000'}
               </span>
             </div>
@@ -104,12 +108,12 @@ export default function ConnectSidebar({
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           {currentUser?.role === 'admin' && (
             <button
               onClick={onOpenAdminPanel}
               title="Admin Panel"
-              className="p-2 rounded-xl text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-500 transition-all"
+              className="p-2 rounded-xl text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-500 transition-all shrink-0"
             >
               <ShieldCheck className="w-4.5 h-4.5" />
             </button>
@@ -118,7 +122,7 @@ export default function ConnectSidebar({
           <button
             onClick={() => setDarkMode(!darkMode)}
             title="Toggle Theme"
-            className="p-2 rounded-xl text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-800 transition-all"
+            className="p-2 rounded-xl text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-800 transition-all shrink-0"
           >
             {darkMode ? <Sun className="w-4.5 h-4.5 text-amber-400" /> : <Moon className="w-4.5 h-4.5 text-indigo-600" />}
           </button>
@@ -126,7 +130,7 @@ export default function ConnectSidebar({
           <button
             onClick={onLogout}
             title="Logout"
-            className="p-2 rounded-xl text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-500 transition-all"
+            className="p-2 rounded-xl text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-500 transition-all shrink-0"
           >
             <LogOut className="w-4.5 h-4.5" />
           </button>
@@ -141,9 +145,12 @@ export default function ConnectSidebar({
             type="text"
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search by CX User ID, Username, Name..."
-            className="w-full pl-9 pr-4 py-2 bg-gray-100 dark:bg-slate-800 border border-transparent dark:border-slate-700/60 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white placeholder-slate-400"
+            placeholder="Search by User ID (e.g. CX102938), Name..."
+            className="w-full pl-9 pr-8 py-2 bg-gray-100 dark:bg-slate-800 border border-transparent dark:border-slate-700/60 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white placeholder-slate-400"
           />
+          {searching && (
+            <Loader2 className="absolute right-3 top-2.5 w-4 h-4 text-blue-500 animate-spin" />
+          )}
         </div>
       </div>
 
@@ -175,28 +182,57 @@ export default function ConnectSidebar({
 
       {/* Chat / Users Feed */}
       <div className="flex-1 overflow-y-auto divide-y divide-gray-50 dark:divide-slate-800/40">
-        {searchQuery.trim() !== '' && searchResults.length > 0 ? (
-          <div>
-            <div className="px-3 py-1.5 text-[10px] font-bold text-blue-500 uppercase tracking-wider bg-blue-50/50 dark:bg-blue-950/20">
-              Search Results ({searchResults.length})
-            </div>
-            {searchResults.map((u) => (
-              <div
-                key={u._id}
-                onClick={() => handleUserClick(u)}
-                className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors"
-              >
-                <img src={getFullMediaUrl(u.avatar, u.username)} alt={u.fullName} className="w-10 h-10 rounded-full object-cover" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-slate-900 dark:text-white truncate">{u.fullName}</span>
-                    <span className="font-mono text-[10px] text-blue-500 font-bold">{u.userId}</span>
-                  </div>
-                  <p className="text-xs text-slate-400 truncate">@{u.username} • {u.bio}</p>
-                </div>
+        {searchQuery.trim() !== '' ? (
+          searchResults.length > 0 ? (
+            <div>
+              <div className="px-3 py-1.5 text-[10px] font-bold text-blue-500 uppercase tracking-wider bg-blue-50/50 dark:bg-blue-950/20 flex items-center justify-between">
+                <span>Search Results ({searchResults.length})</span>
+                <span className="font-mono text-[9px] text-slate-400">CX User ID Search</span>
               </div>
-            ))}
-          </div>
+              {searchResults.map((u) => (
+                <div
+                  key={u._id || u.id}
+                  onClick={() => handleUserClick(u)}
+                  className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors"
+                >
+                  <img src={getFullMediaUrl(u.avatar, u.username)} alt={u.fullName} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900 dark:text-white truncate">{u.fullName}</span>
+                      <span className="font-mono text-[10px] text-blue-500 font-bold bg-blue-100 dark:bg-blue-950 px-1.5 py-0.5 rounded shrink-0">{u.userId}</span>
+                    </div>
+                    <p className="text-xs text-slate-400 truncate">@{u.username} • {u.bio}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredUsers.length > 0 ? (
+            <div>
+              <div className="px-3 py-1.5 text-[10px] font-bold text-blue-500 uppercase tracking-wider bg-blue-50/50 dark:bg-blue-950/20">
+                Matches ({filteredUsers.length})
+              </div>
+              {filteredUsers.map((u) => (
+                <div
+                  key={u._id || u.id}
+                  onClick={() => handleUserClick(u)}
+                  className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors"
+                >
+                  <img src={getFullMediaUrl(u.avatar, u.username)} alt={u.fullName} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900 dark:text-white truncate">{u.fullName}</span>
+                      <span className="font-mono text-[10px] text-blue-500 font-bold bg-blue-100 dark:bg-blue-950 px-1.5 py-0.5 rounded shrink-0">{u.userId}</span>
+                    </div>
+                    <p className="text-xs text-slate-400 truncate">@{u.username} • {u.bio}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 text-center text-xs text-slate-400 italic">
+              No user found matching "{searchQuery}". Make sure User ID format is correct (e.g. CX102938).
+            </div>
+          )
         ) : (
           <>
             {/* Render Groups & Channels */}
@@ -213,7 +249,7 @@ export default function ConnectSidebar({
                       : 'hover:bg-gray-50 dark:hover:bg-slate-800/50'
                   }`}
                 >
-                  <img src={groupAvatar} alt={group.name} className="w-11 h-11 rounded-full object-cover" />
+                  <img src={groupAvatar} alt={group.name} className="w-11 h-11 rounded-full object-cover shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
                       <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate">{group.name}</h4>
@@ -239,14 +275,14 @@ export default function ConnectSidebar({
                       : 'hover:bg-gray-50 dark:hover:bg-slate-800/50'
                   }`}
                 >
-                  <div className="relative">
-                    <img src={userAvatar} alt={user.fullName} className="w-11 h-11 rounded-full object-cover" />
+                  <div className="relative shrink-0">
+                    <img src={userAvatar} alt={user.fullName} className="w-11 h-11 rounded-full object-cover shrink-0" />
                     <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
                       <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate">{user.fullName}</h4>
-                      <span className="font-mono text-[10px] text-blue-400 font-bold">{user.userId}</span>
+                      <span className="font-mono text-[10px] text-blue-400 font-bold bg-blue-950/60 px-1.5 py-0.2 rounded shrink-0">{user.userId}</span>
                     </div>
                     <p className="text-xs text-slate-400 truncate">{user.bio || `@${user.username}`}</p>
                   </div>
@@ -258,7 +294,7 @@ export default function ConnectSidebar({
       </div>
 
       {/* Floating Create Button */}
-      <div className="p-3 border-t border-gray-100 dark:border-slate-800">
+      <div className="p-3 border-t border-gray-100 dark:border-slate-800 shrink-0">
         <button
           onClick={onOpenNewChatModal}
           className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition-all"
