@@ -4,7 +4,6 @@ const { authenticateToken } = require('../middleware/auth');
 const db = require('../db');
 const Group = require('../models/Group');
 const ConnectUser = require('../models/ConnectUser');
-const ConnectMessage = require('../models/ConnectMessage');
 
 // GET /api/groups/list (User's chats, groups, courses, channels & all users)
 router.get('/list', authenticateToken, async (req, res) => {
@@ -16,13 +15,14 @@ router.get('/list', authenticateToken, async (req, res) => {
       const groups = await Group.find({
         $or: [
           { members: userId },
-          { type: 'channel' }
+          { creatorId: userId },
+          { type: { $in: ['channel', 'public_channel', 'group', 'course'] } }
         ]
       });
 
       return res.json({ users: allUsers, groups });
     } else {
-      const allUsers = db.usersStore.find(u => u._id !== userId)
+      const allUsers = db.usersStore.find(u => u._id !== userId && u.id !== userId)
         .map(({ password, ...rest }) => rest);
 
       // Find all users this user has messaged with
@@ -41,7 +41,11 @@ router.get('/list', authenticateToken, async (req, res) => {
       });
 
       const groups = db.groupsStore.find(g => 
-        (g.members && g.members.includes(userId)) || g.type === 'channel' || g.type === 'public_channel'
+        (g.members && g.members.includes(userId)) || 
+        g.creatorId === userId ||
+        g.type === 'channel' || 
+        g.type === 'public_channel' ||
+        g.type === 'group'
       );
 
       return res.json({ users: allUsers, groups });
@@ -52,38 +56,44 @@ router.get('/list', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /api/groups (Create Group / Course / Channel)
+// POST /api/groups (Create Group / Course / Channel with selected members)
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { name, description, avatar, type, courseCode } = req.body;
-    if (!name) {
+    const { name, description, avatar, type, courseCode, selectedMemberIds } = req.body;
+    if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Name is required' });
     }
 
     const groupType = type || 'group';
+    const creatorId = req.user.id;
+    
+    // Combine creator with any selected member IDs
+    const membersList = Array.from(new Set([creatorId, ...(selectedMemberIds || [])]));
+
+    const generatedCode = courseCode || 'CX-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
     if (db.isMongoConnected()) {
       const newGroup = await Group.create({
-        name,
-        description: description || '',
-        avatar: avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${name}`,
+        name: name.trim(),
+        description: description ? description.trim() : '',
+        avatar: avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(name)}`,
         type: groupType,
-        creatorId: req.user.id,
-        courseCode: courseCode || Math.random().toString(36).substring(2, 8).toUpperCase(),
-        members: [req.user.id],
-        admins: [req.user.id]
+        creatorId,
+        courseCode: generatedCode,
+        members: membersList,
+        admins: [creatorId]
       });
       return res.json({ group: newGroup });
     } else {
       const newGroup = db.groupsStore.insertOne({
-        name,
-        description: description || '',
-        avatar: avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${name}`,
+        name: name.trim(),
+        description: description ? description.trim() : '',
+        avatar: avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(name)}`,
         type: groupType,
-        creatorId: req.user.id,
-        courseCode: courseCode || Math.random().toString(36).substring(2, 8).toUpperCase(),
-        members: [req.user.id],
-        admins: [req.user.id]
+        creatorId,
+        courseCode: generatedCode,
+        members: membersList,
+        admins: [creatorId]
       });
       return res.json({ group: newGroup });
     }
@@ -119,12 +129,45 @@ router.post('/join', authenticateToken, async (req, res) => {
       const members = group.members || [];
       if (!members.includes(req.user.id)) {
         members.push(req.user.id);
-        db.groupsStore.updateOne(group._id, { members });
+        db.groupsStore.updateOne(group._id || group.id, { members });
       }
       return res.json({ group });
     }
   } catch (err) {
     res.status(500).json({ error: 'Failed to join' });
+  }
+});
+
+// POST /api/groups/:id/members (Add people to existing group)
+router.post('/:id/members', authenticateToken, async (req, res) => {
+  try {
+    const groupId = req.params.id;
+    const { userIdsToAdd } = req.body;
+
+    if (!userIdsToAdd || !Array.isArray(userIdsToAdd)) {
+      return res.status(400).json({ error: 'User IDs array required' });
+    }
+
+    if (db.isMongoConnected()) {
+      const group = await Group.findById(groupId);
+      if (!group) return res.status(404).json({ error: 'Group not found' });
+
+      userIdsToAdd.forEach(uId => {
+        if (!group.members.includes(uId)) group.members.push(uId);
+      });
+      await group.save();
+      return res.json({ group });
+    } else {
+      const group = db.groupsStore.findById(groupId) || db.groupsStore.findOne(g => g._id === groupId || g.id === groupId);
+      if (!group) return res.status(404).json({ error: 'Group not found' });
+
+      const members = Array.from(new Set([...(group.members || []), ...userIdsToAdd]));
+      const updated = db.groupsStore.updateOne(group._id || group.id, { members });
+      return res.json({ group: updated });
+    }
+  } catch (err) {
+    console.error('Add member error:', err);
+    res.status(500).json({ error: 'Failed to add members' });
   }
 });
 

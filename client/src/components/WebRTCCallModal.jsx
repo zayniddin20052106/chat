@@ -11,7 +11,8 @@ export default function WebRTCCallModal({
   onAcceptCall,
   onEndCall,
   localStream,
-  remoteStream
+  remoteStream,
+  peerConnectionRef
 }) {
   const [micMuted, setMicMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
@@ -56,19 +57,52 @@ export default function WebRTCCallModal({
     }
   };
 
+  const stopScreenShare = () => {
+    if (peerConnectionRef?.current && localStream) {
+      const senders = peerConnectionRef.current.getSenders();
+      const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+      const cameraTrack = localStream.getVideoTracks()[0];
+      if (videoSender && cameraTrack) {
+        videoSender.replaceTrack(cameraTrack);
+      }
+    }
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+    setIsScreenSharing(false);
+  };
+
   const toggleScreenShare = async () => {
     try {
       if (!isScreenSharing) {
         const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        
+        // Replace WebRTC outgoing video track so recipient sees the screen live
+        if (peerConnectionRef?.current) {
+          const senders = peerConnectionRef.current.getSenders();
+          const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+          const screenTrack = screenStream.getVideoTracks()[0];
+          if (videoSender && screenTrack) {
+            videoSender.replaceTrack(screenTrack);
+          }
+        }
+
+        // Display screen stream on local video element
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = screenStream;
         }
+
+        // Auto revert when user stops sharing screen from browser floating toolbar
+        const screenTrack = screenStream.getVideoTracks()[0];
+        if (screenTrack) {
+          screenTrack.onended = () => {
+            stopScreenShare();
+          };
+        }
+
         setIsScreenSharing(true);
       } else {
-        if (localVideoRef.current && localStream) {
-          localVideoRef.current.srcObject = localStream;
-        }
-        setIsScreenSharing(false);
+        stopScreenShare();
       }
     } catch (err) {
       console.error('Screen sharing error:', err);
@@ -174,10 +208,10 @@ export default function WebRTCCallModal({
                   autoPlay
                   muted
                   playsInline
-                  className="w-full h-full object-cover transform -scale-x-100"
+                  className={`w-full h-full object-cover ${isScreenSharing ? '' : 'transform -scale-x-100'}`}
                 />
                 <div className="absolute bottom-1 left-2 text-[10px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded backdrop-blur-xs">
-                  You
+                  {isScreenSharing ? 'Screen Sharing' : 'You'}
                 </div>
               </div>
             )}

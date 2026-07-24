@@ -559,6 +559,7 @@ export default function App() {
             onEndCall={handleEndCall}
             localStream={localStream}
             remoteStream={remoteStream}
+            peerConnectionRef={peerConnectionRef}
           />
         )}
 
@@ -596,7 +597,7 @@ export default function App() {
             onCreated={(newGroup) => {
               setGroups([...groups, newGroup]);
               setActiveChat({
-                id: newGroup._id,
+                id: newGroup._id || newGroup.id,
                 name: newGroup.name,
                 type: newGroup.type,
                 avatar: newGroup.avatar,
