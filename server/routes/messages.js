@@ -2,9 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const db = require('../db');
-const Message = require('../models/Message');
+const ConnectMessage = require('../models/ConnectMessage');
 
-// GET /api/messages?chatId=xyz&chatType=private|group|channel
+// GET /api/messages?chatId=xyz&chatType=private|group|channel|public_channel|private_channel
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { chatId, chatType } = req.query;
@@ -25,11 +25,20 @@ router.get('/', authenticateToken, async (req, res) => {
         };
       } else if (chatType === 'group' || chatType === 'course') {
         query = { groupId: chatId };
-      } else if (chatType === 'channel') {
+      } else if (chatType === 'channel' || chatType === 'public_channel' || chatType === 'private_channel') {
         query = { channelId: chatId };
+      } else {
+        query = {
+          $or: [
+            { channelId: chatId },
+            { groupId: chatId },
+            { senderId: currentUserId, recipientId: chatId },
+            { senderId: chatId, recipientId: currentUserId }
+          ]
+        };
       }
 
-      const messages = await Message.find(query).sort({ createdAt: 1 }).limit(200);
+      const messages = await ConnectMessage.find(query).sort({ createdAt: 1 }).limit(300);
       return res.json({ messages });
     } else {
       let messages = [];
@@ -39,9 +48,16 @@ router.get('/', authenticateToken, async (req, res) => {
           (m.senderId === chatId && m.recipientId === currentUserId)
         );
       } else if (chatType === 'group' || chatType === 'course') {
-        messages = db.messagesStore.find(m => m.groupId === chatId);
-      } else if (chatType === 'channel') {
-        messages = db.messagesStore.find(m => m.channelId === chatId);
+        messages = db.messagesStore.find(m => m.groupId === chatId || m.groupId === chatId?.toString());
+      } else if (chatType === 'channel' || chatType === 'public_channel' || chatType === 'private_channel') {
+        messages = db.messagesStore.find(m => m.channelId === chatId || m.channelId === chatId?.toString());
+      } else {
+        messages = db.messagesStore.find(m => 
+          m.channelId === chatId || 
+          m.groupId === chatId ||
+          (m.senderId === currentUserId && m.recipientId === chatId) ||
+          (m.senderId === chatId && m.recipientId === currentUserId)
+        );
       }
 
       messages.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -60,7 +76,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const messageId = req.params.id;
 
     if (db.isMongoConnected()) {
-      const msg = await Message.findById(messageId);
+      const msg = await ConnectMessage.findById(messageId);
       if (!msg) return res.status(404).json({ error: 'Message not found' });
       if (msg.senderId !== req.user.id) return res.status(403).json({ error: 'Unauthorized to edit this message' });
 
@@ -87,7 +103,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     const messageId = req.params.id;
 
     if (db.isMongoConnected()) {
-      const msg = await Message.findById(messageId);
+      const msg = await ConnectMessage.findById(messageId);
       if (!msg) return res.status(404).json({ error: 'Message not found' });
       if (msg.senderId !== req.user.id && req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Unauthorized to delete this message' });
