@@ -11,20 +11,28 @@ function generateUniqueId() {
   return `CX${randomNum}`;
 }
 
-// POST /api/connect/auth/google
+// POST /api/connect/auth/google (Google / Email Login & Auto-Registration)
 router.post('/google', async (req, res) => {
   try {
     let { email, fullName, username, avatar } = req.body;
     if (!fullName && !username && !email) {
-      return res.status(400).json({ error: 'Name is required for registration' });
+      return res.status(400).json({ error: 'Name or email is required for login' });
     }
 
-    const cleanFullName = (fullName || username || 'ConnectUser').trim();
-    const cleanUsername = (username || (email ? email.split('@')[0] : cleanFullName)).toLowerCase().replace(/[^a-z0-9_]/g, '');
-    const cleanEmail = (email || `${cleanUsername}@connectx.com`).toLowerCase().trim();
+    const cleanFullName = (fullName || username || (email ? email.split('@')[0] : 'ConnectUser')).trim();
+    const rawEmail = (email || `${cleanFullName.toLowerCase().replace(/[^a-z0-9]/g, '')}@connectx.com`).trim().toLowerCase();
+    const cleanEmail = rawEmail;
+    const cleanUsername = (username || rawEmail.split('@')[0]).toLowerCase().replace(/[^a-z0-9_]/g, '');
 
     if (db.isMongoConnected()) {
-      let user = await ConnectUser.findOne({ email: cleanEmail });
+      // Find existing account case-insensitively by email OR username
+      let user = await ConnectUser.findOne({
+        $or: [
+          { email: { $regex: `^${cleanEmail}$`, $options: 'i' } },
+          { username: { $regex: `^${cleanUsername}$`, $options: 'i' } }
+        ]
+      });
+
       if (!user) {
         let uniqueUserId = generateUniqueId();
         let existingId = await ConnectUser.findOne({ userId: uniqueUserId });
@@ -38,14 +46,16 @@ router.post('/google', async (req, res) => {
           email: cleanEmail,
           fullName: cleanFullName,
           username: cleanUsername,
-          avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanUsername}`,
+          avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanUsername)}`,
           bio: 'Hey there! I am using ConnectX.',
           country: 'United States',
           status: 'online',
           joinDate: new Date()
         });
       } else {
-        user.fullName = cleanFullName || user.fullName;
+        if (cleanFullName && user.fullName !== cleanFullName) {
+          user.fullName = cleanFullName;
+        }
         if (avatar) user.avatar = avatar;
         user.status = 'online';
         user.lastSeen = new Date();
@@ -57,14 +67,19 @@ router.post('/google', async (req, res) => {
       }
 
       const token = jwt.sign(
-        { id: user._id, userId: user.userId, email: user.email, username: user.username, role: user.role },
+        { id: user._id, userId: user.userId, email: user.email, username: user.username, role: user.role || 'user' },
         JWT_SECRET,
         { expiresIn: '30d' }
       );
 
       return res.json({ token, user });
     } else {
-      let user = db.usersStore.findOne(u => u.email === cleanEmail || u.username === cleanUsername);
+      // Fallback JSON DB mode - Case-insensitive lookup by email or username
+      let user = db.usersStore.findOne(u => 
+        (u.email && u.email.toLowerCase() === cleanEmail) ||
+        (u.username && u.username.toLowerCase() === cleanUsername)
+      );
+
       if (!user) {
         let uniqueUserId = generateUniqueId();
         while (db.usersStore.findOne(u => u.userId === uniqueUserId)) {
@@ -76,7 +91,7 @@ router.post('/google', async (req, res) => {
           email: cleanEmail,
           fullName: cleanFullName,
           username: cleanUsername,
-          avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanUsername}`,
+          avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanUsername)}`,
           coverPhoto: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
           bio: 'Hey there! I am using ConnectX.',
           country: 'United States',
@@ -102,7 +117,7 @@ router.post('/google', async (req, res) => {
       }
 
       const token = jwt.sign(
-        { id: user._id, userId: user.userId, email: user.email, username: user.username, role: user.role },
+        { id: user._id || user.id, userId: user.userId, email: user.email, username: user.username, role: user.role || 'user' },
         JWT_SECRET,
         { expiresIn: '30d' }
       );
@@ -111,7 +126,7 @@ router.post('/google', async (req, res) => {
     }
   } catch (err) {
     console.error('Google auth error:', err);
-    res.status(500).json({ error: 'Authentication failed' });
+    res.status(500).json({ error: 'Authentication failed. Please check inputs' });
   }
 });
 
@@ -151,6 +166,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
       return res.json({ user });
     }
   } catch (err) {
+    console.error('Profile update error:', err);
     res.status(500).json({ error: 'Profile update failed' });
   }
 });

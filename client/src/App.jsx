@@ -44,6 +44,14 @@ export default function App() {
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showPWAInstallModal, setShowPWAInstallModal] = useState(false);
 
+  // Set global axios auth header whenever token exists
+  useEffect(() => {
+    const token = localStorage.getItem('connectx_token');
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    }
+  }, [currentUser]);
+
   // Auto-verify token & restore account session on launch
   useEffect(() => {
     const verifyUserToken = async () => {
@@ -51,9 +59,8 @@ export default function App() {
       if (!token) return;
 
       try {
-        const res = await axios.get('/api/connect/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        const res = await axios.get('/api/connect/auth/me');
         if (res.data?.user) {
           setCurrentUser(res.data.user);
           localStorage.setItem('connectx_user', JSON.stringify(res.data.user));
@@ -63,6 +70,7 @@ export default function App() {
         if (err.response?.status === 401 || err.response?.status === 403) {
           localStorage.removeItem('connectx_token');
           localStorage.removeItem('connectx_user');
+          delete axios.defaults.headers.common['Authorization'];
           setCurrentUser(null);
         }
       }
@@ -240,9 +248,8 @@ export default function App() {
     try {
       const token = localStorage.getItem('connectx_token');
       if (!token) return;
-      const res = await axios.get('/api/groups/list', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      const res = await axios.get('/api/groups/list');
       setUsers(res.data.users || []);
       setGroups(res.data.groups || []);
 
@@ -278,9 +285,9 @@ export default function App() {
   const fetchMessages = async (chatId, chatType) => {
     try {
       const token = localStorage.getItem('connectx_token');
-      const res = await axios.get(`/api/messages?chatId=${chatId}&chatType=${chatType}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      if (!token) return;
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      const res = await axios.get(`/api/messages?chatId=${chatId}&chatType=${chatType}`);
       setMessages(res.data.messages || []);
     } catch (err) {
       console.error('Failed to fetch messages:', err);
@@ -452,6 +459,7 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('connectx_token');
     localStorage.removeItem('connectx_user');
+    delete axios.defaults.headers.common['Authorization'];
     setCurrentUser(null);
   };
 
@@ -461,6 +469,7 @@ export default function App() {
         onAuthSuccess={(user, token) => {
           localStorage.setItem('connectx_token', token);
           localStorage.setItem('connectx_user', JSON.stringify(user));
+          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
           setCurrentUser(user);
         }}
       />
