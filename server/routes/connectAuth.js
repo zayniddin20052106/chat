@@ -66,8 +66,9 @@ router.post('/google', async (req, res) => {
         return res.status(403).json({ error: 'Your account has been banned by Administrator.' });
       }
 
+      const userIdVal = user._id || user.id || user.userId;
       const token = jwt.sign(
-        { id: user._id, userId: user.userId, email: user.email, username: user.username, role: user.role || 'user' },
+        { id: userIdVal, userId: user.userId, email: user.email, username: user.username, role: user.role || 'user' },
         JWT_SECRET,
         { expiresIn: '30d' }
       );
@@ -105,20 +106,34 @@ router.post('/google', async (req, res) => {
           blockedUsers: []
         });
       } else {
-        user = db.usersStore.updateOne(user._id || user.id, {
+        const targetId = user._id || user.id || user.userId;
+        const updatedUser = db.usersStore.updateOne(targetId, {
           fullName: cleanFullName || user.fullName,
           avatar: avatar || user.avatar,
           status: 'online',
           lastSeen: new Date().toISOString()
         });
+        if (updatedUser) {
+          user = updatedUser;
+        } else {
+          user.fullName = cleanFullName || user.fullName;
+          if (avatar) user.avatar = avatar;
+          user.status = 'online';
+          user.lastSeen = new Date().toISOString();
+        }
+      }
+
+      if (!user) {
+        return res.status(500).json({ error: 'User initialization error. Please try again.' });
       }
 
       if (user.isBanned) {
         return res.status(403).json({ error: 'Your account has been banned by Administrator.' });
       }
 
+      const userIdVal = user._id || user.id || user.userId;
       const token = jwt.sign(
-        { id: user._id || user.id, userId: user.userId, email: user.email, username: user.username, role: user.role || 'user' },
+        { id: userIdVal, userId: user.userId, email: user.email, username: user.username, role: user.role || 'user' },
         JWT_SECRET,
         { expiresIn: '30d' }
       );
@@ -144,7 +159,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     } else {
       let user = db.usersStore.findById(searchId);
       if (!user) {
-        user = db.usersStore.findOne(u => u.userId === searchId || u.email === req.user.email);
+        user = db.usersStore.findOne(u => u.userId === searchId || (u.email && u.email === req.user.email));
       }
       if (!user) return res.status(404).json({ error: 'User not found' });
       return res.json({ user });
@@ -176,7 +191,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
     } else {
       let user = db.usersStore.updateOne(searchId, updates);
       if (!user) {
-        const existing = db.usersStore.findOne(u => u.userId === searchId || u.email === req.user.email);
+        const existing = db.usersStore.findOne(u => u.userId === searchId || (u.email && u.email === req.user.email));
         if (existing) {
           user = db.usersStore.updateOne(existing._id || existing.id, updates);
         }
