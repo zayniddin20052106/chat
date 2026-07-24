@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Search, MessageSquare, Users, Megaphone, PhoneCall, 
-  ShieldCheck, Sun, Moon, LogOut, Plus, UserPlus, CheckCheck, Sparkles, Loader2 
+  ShieldCheck, Sun, Moon, LogOut, Plus, UserPlus, CheckCheck, Sparkles, Loader2, Edit3, PenSquare 
 } from 'lucide-react';
 import axios from 'axios';
 import { getFullMediaUrl } from '../apiConfig';
@@ -37,7 +37,7 @@ export default function ConnectSidebar({
     try {
       const token = localStorage.getItem('connectx_token');
       const res = await axios.get(`/api/connect/search?q=${encodeURIComponent(val)}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
       setSearchResults(res.data.users || []);
     } catch (err) {
@@ -77,8 +77,13 @@ export default function ConnectSidebar({
     setSearchResults([]);
   };
 
+  const handleImgError = (e, seed) => {
+    e.target.onerror = null;
+    e.target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed || 'user')}`;
+  };
+
   return (
-    <aside className="w-full md:w-80 lg:w-96 flex flex-col h-full bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800/80 shrink-0 transition-colors duration-200 select-none">
+    <aside className="w-full md:w-80 lg:w-96 flex flex-col h-full bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800/80 shrink-0 transition-colors duration-200 select-none relative overflow-hidden">
       
       {/* Header Profile Info Bar */}
       <div className="p-3.5 bg-gray-50/80 dark:bg-slate-800/60 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between">
@@ -90,6 +95,7 @@ export default function ConnectSidebar({
             <img
               src={getFullMediaUrl(currentUser?.avatar, currentUser?.username || 'me')}
               alt={currentUser?.fullName}
+              onError={(e) => handleImgError(e, currentUser?.username || 'me')}
               className="w-10 h-10 rounded-full border border-gray-200 dark:border-slate-700 object-cover bg-blue-100 dark:bg-slate-800 shrink-0"
             />
             <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
@@ -181,7 +187,7 @@ export default function ConnectSidebar({
       </div>
 
       {/* Chat / Users Feed */}
-      <div className="flex-1 overflow-y-auto divide-y divide-gray-50 dark:divide-slate-800/40">
+      <div className="flex-1 overflow-y-auto divide-y divide-gray-50 dark:divide-slate-800/40 pb-20">
         {searchQuery.trim() !== '' ? (
           searchResults.length > 0 ? (
             <div>
@@ -195,7 +201,12 @@ export default function ConnectSidebar({
                   onClick={() => handleUserClick(u)}
                   className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors"
                 >
-                  <img src={getFullMediaUrl(u.avatar, u.username)} alt={u.fullName} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                  <img
+                    src={getFullMediaUrl(u.avatar, u.username)}
+                    alt={u.fullName}
+                    onError={(e) => handleImgError(e, u.username)}
+                    className="w-10 h-10 rounded-full object-cover shrink-0"
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs text-slate-900 dark:text-white truncate">{u.fullName}</span>
@@ -217,7 +228,12 @@ export default function ConnectSidebar({
                   onClick={() => handleUserClick(u)}
                   className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors"
                 >
-                  <img src={getFullMediaUrl(u.avatar, u.username)} alt={u.fullName} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                  <img
+                    src={getFullMediaUrl(u.avatar, u.username)}
+                    alt={u.fullName}
+                    onError={(e) => handleImgError(e, u.username)}
+                    className="w-10 h-10 rounded-full object-cover shrink-0"
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs text-slate-900 dark:text-white truncate">{u.fullName}</span>
@@ -249,7 +265,12 @@ export default function ConnectSidebar({
                       : 'hover:bg-gray-50 dark:hover:bg-slate-800/50'
                   }`}
                 >
-                  <img src={groupAvatar} alt={group.name} className="w-11 h-11 rounded-full object-cover shrink-0" />
+                  <img
+                    src={groupAvatar}
+                    alt={group.name}
+                    onError={(e) => handleImgError(e, group.name)}
+                    className="w-11 h-11 rounded-full object-cover shrink-0"
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
                       <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate">{group.name}</h4>
@@ -276,7 +297,12 @@ export default function ConnectSidebar({
                   }`}
                 >
                   <div className="relative shrink-0">
-                    <img src={userAvatar} alt={user.fullName} className="w-11 h-11 rounded-full object-cover shrink-0" />
+                    <img
+                      src={userAvatar}
+                      alt={user.fullName}
+                      onError={(e) => handleImgError(e, user.username)}
+                      className="w-11 h-11 rounded-full object-cover shrink-0"
+                    />
                     <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
                   </div>
                   <div className="flex-1 min-w-0">
@@ -293,16 +319,14 @@ export default function ConnectSidebar({
         )}
       </div>
 
-      {/* Floating Create Button */}
-      <div className="p-3 border-t border-gray-100 dark:border-slate-800 shrink-0">
-        <button
-          onClick={onOpenNewChatModal}
-          className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Group or Channel</span>
-        </button>
-      </div>
+      {/* Telegram-style Floating Action Pencil Button (FAB) */}
+      <button
+        onClick={onOpenNewChatModal}
+        title="Yangi guruh yoki kanal yaratish (New Group / Channel)"
+        className="absolute bottom-5 right-5 z-30 w-13 h-13 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-xl shadow-blue-600/40 hover:shadow-blue-500/60 flex items-center justify-center transform hover:scale-110 active:scale-95 transition-all duration-200 border-2 border-white/20 group cursor-pointer"
+      >
+        <Edit3 className="w-6 h-6 text-white group-hover:rotate-12 transition-transform" />
+      </button>
     </aside>
   );
 }
