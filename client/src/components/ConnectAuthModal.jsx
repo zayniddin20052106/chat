@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Sparkles, ArrowRight, ShieldCheck, User, Camera, Loader2, Mail, CheckCircle2, LogIn, UserPlus, Key } from 'lucide-react';
 import axios from 'axios';
+import { getFullMediaUrl, compressImageToBase64 } from '../apiConfig';
 
 const AVATAR_PRESETS = [
   'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex',
@@ -37,25 +38,12 @@ export default function ConnectAuthModal({ onAuthSuccess, onLoginSuccess }) {
 
     setUploadingImage(true);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        setCustomAvatar(event.target.result);
-      }
-    };
-    reader.readAsDataURL(file);
-
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await axios.post('/api/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      if (res.data?.fileUrl) {
-        setCustomAvatar(res.data.fileUrl);
-      }
+      // Compress device image into permanent lightweight Base64 string (~20KB)
+      const base64Data = await compressImageToBase64(file, 300, 300);
+      setCustomAvatar(base64Data);
     } catch (err) {
-      console.log('Server upload fallback to local preview:', err);
+      console.log('Image compression error:', err);
     } finally {
       setUploadingImage(false);
     }
@@ -245,6 +233,10 @@ export default function ConnectAuthModal({ onAuthSuccess, onLoginSuccess }) {
                     <img
                       src={customAvatar || selectedAvatar}
                       alt="Avatar Preview"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=User`;
+                      }}
                       className="w-full h-full rounded-full object-cover bg-slate-950 border-2 border-slate-900"
                     />
                   </div>

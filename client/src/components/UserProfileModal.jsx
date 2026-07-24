@@ -4,7 +4,7 @@ import {
   Image as ImageIcon, Video, FileText, Globe, Calendar, Key, Loader2, Check 
 } from 'lucide-react';
 import axios from 'axios';
-import { getFullMediaUrl } from '../apiConfig';
+import { getFullMediaUrl, compressImageToBase64 } from '../apiConfig';
 
 export default function UserProfileModal({ currentUser, profileUser, onClose, onUpdateUser }) {
   // Always default to profileUser if provided, or currentUser
@@ -20,8 +20,6 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
   const [coverPhoto, setCoverPhoto] = useState(targetUser?.coverPhoto || currentUser?.coverPhoto || '');
   const [country, setCountry] = useState(targetUser?.country || currentUser?.country || 'United States');
   
-  // Default to true for self so editing options & inputs are immediately visible
-  const [editing, setEditing] = useState(isSelf);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -34,37 +32,19 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
 
     setUploadingImage(true);
 
-    // Instant local preview via FileReader
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        if (type === 'avatar') setAvatar(event.target.result);
-        else if (type === 'cover') setCoverPhoto(event.target.result);
-      }
-    };
-    reader.readAsDataURL(file);
-
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const token = localStorage.getItem('connectx_token');
-      const res = await axios.post('/api/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: token ? `Bearer ${token}` : ''
-        }
-      });
+      // Compress image into permanent lightweight Base64 data URL
+      const base64Data = await compressImageToBase64(file, type === 'avatar' ? 300 : 800, type === 'avatar' ? 300 : 500);
 
-      const uploadedUrl = res.data.fileUrl;
       if (type === 'avatar') {
-        setAvatar(uploadedUrl);
-        await autoSaveProfile({ avatar: uploadedUrl });
+        setAvatar(base64Data);
+        await autoSaveProfile({ avatar: base64Data });
       } else if (type === 'cover') {
-        setCoverPhoto(uploadedUrl);
-        await autoSaveProfile({ coverPhoto: uploadedUrl });
+        setCoverPhoto(base64Data);
+        await autoSaveProfile({ coverPhoto: base64Data });
       }
     } catch (err) {
-      console.log('Upload error fallback to local preview:', err);
+      console.log('Image compression error:', err);
     } finally {
       setUploadingImage(false);
     }
@@ -119,6 +99,11 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
   const displayAvatar = getFullMediaUrl(avatar || targetUser?.avatar, targetUser?.username || 'user');
   const displayCover = getFullMediaUrl(coverPhoto || targetUser?.coverPhoto, 'cover');
 
+  const handleImgError = (e, seed) => {
+    e.target.onerror = null;
+    e.target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed || 'user')}`;
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in text-white overflow-y-auto">
       <div className="w-full max-w-2xl max-h-[92dvh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-white my-auto">
@@ -144,6 +129,7 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
           <img
             src={displayCover || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80'}
             alt="Cover"
+            onError={(e) => handleImgError(e, 'cover')}
             className="w-full h-full object-cover"
           />
 
@@ -167,6 +153,7 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
               <img
                 src={displayAvatar}
                 alt="Avatar"
+                onError={(e) => handleImgError(e, targetUser?.username || 'me')}
                 className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-slate-900 bg-slate-800 object-cover shadow-2xl"
               />
               {isSelf && (
@@ -264,7 +251,12 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
                 <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-700/60 space-y-2">
                   <label className="block text-xs font-semibold text-slate-300">Profil Rasmi (Qurilmadan rasm tanlash)</label>
                   <div className="flex items-center gap-3">
-                    <img src={displayAvatar} alt="preview" className="w-12 h-12 rounded-full object-cover border border-slate-600 bg-slate-900 shrink-0" />
+                    <img
+                      src={displayAvatar}
+                      alt="preview"
+                      onError={(e) => handleImgError(e, targetUser?.username || 'me')}
+                      className="w-12 h-12 rounded-full object-cover border border-slate-600 bg-slate-900 shrink-0"
+                    />
                     <button
                       type="button"
                       onClick={() => avatarInputRef.current?.click()}
