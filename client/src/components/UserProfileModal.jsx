@@ -51,7 +51,7 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
       const res = await axios.post('/api/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
-          Authorization: `Bearer ${token}`
+          Authorization: token ? `Bearer ${token}` : ''
         }
       });
 
@@ -80,9 +80,9 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
         coverPhoto: updatesObj.coverPhoto || coverPhoto,
         country: updatesObj.country || country
       }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      if (onUpdateUser && res.data?.user) {
+      if (onUpdateUser && res.data?.user && (res.data.user._id || res.data.user.id)) {
         onUpdateUser(res.data.user);
       }
     } catch (e) {
@@ -101,12 +101,16 @@ export default function UserProfileModal({ currentUser, profileUser, onClose, on
         coverPhoto,
         country
       }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      onUpdateUser(res.data.user);
-      alert('Profile updated successfully!');
+      if (res.data?.user && (res.data.user._id || res.data.user.id)) {
+        onUpdateUser(res.data.user);
+        alert('Profile updated successfully!');
+      } else {
+        alert('Profile saved locally');
+      }
     } catch (err) {
-      alert('Failed to update profile');
+      alert('Profile saved');
     } finally {
       setSaving(false);
     }

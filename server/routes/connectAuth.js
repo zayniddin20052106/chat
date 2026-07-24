@@ -74,10 +74,11 @@ router.post('/google', async (req, res) => {
 
       return res.json({ token, user });
     } else {
-      // Fallback JSON DB mode - Case-insensitive lookup by email or username
+      // Fallback JSON DB mode - Robust Case-insensitive lookup by email or username
       let user = db.usersStore.findOne(u => 
         (u.email && u.email.toLowerCase() === cleanEmail) ||
-        (u.username && u.username.toLowerCase() === cleanUsername)
+        (u.username && u.username.toLowerCase() === cleanUsername) ||
+        (cleanEmail && u.email && u.email.split('@')[0].toLowerCase() === cleanEmail.split('@')[0])
       );
 
       if (!user) {
@@ -104,7 +105,7 @@ router.post('/google', async (req, res) => {
           blockedUsers: []
         });
       } else {
-        user = db.usersStore.updateOne(user._id, {
+        user = db.usersStore.updateOne(user._id || user.id, {
           fullName: cleanFullName || user.fullName,
           avatar: avatar || user.avatar,
           status: 'online',
@@ -133,12 +134,18 @@ router.post('/google', async (req, res) => {
 // GET /api/connect/auth/me
 router.get('/me', authenticateToken, async (req, res) => {
   try {
+    const searchId = req.user.id || req.user._id || req.user.userId;
     if (db.isMongoConnected()) {
-      const user = await ConnectUser.findById(req.user.id);
+      const user = await ConnectUser.findOne({
+        $or: [{ _id: searchId }, { userId: searchId }, { email: req.user.email }]
+      });
       if (!user) return res.status(404).json({ error: 'User not found' });
       return res.json({ user });
     } else {
-      const user = db.usersStore.findById(req.user.id);
+      let user = db.usersStore.findById(searchId);
+      if (!user) {
+        user = db.usersStore.findOne(u => u.userId === searchId || u.email === req.user.email);
+      }
       if (!user) return res.status(404).json({ error: 'User not found' });
       return res.json({ user });
     }
@@ -158,11 +165,25 @@ router.put('/profile', authenticateToken, async (req, res) => {
     if (coverPhoto) updates.coverPhoto = coverPhoto;
     if (country) updates.country = country;
 
+    const searchId = req.user.id || req.user._id || req.user.userId;
+
     if (db.isMongoConnected()) {
-      const user = await ConnectUser.findByIdAndUpdate(req.user.id, updates, { new: true });
+      let user = await ConnectUser.findByIdAndUpdate(searchId, updates, { new: true });
+      if (!user) {
+        user = await ConnectUser.findOneAndUpdate({ userId: searchId }, updates, { new: true });
+      }
       return res.json({ user });
     } else {
-      const user = db.usersStore.updateOne(req.user.id, updates);
+      let user = db.usersStore.updateOne(searchId, updates);
+      if (!user) {
+        const existing = db.usersStore.findOne(u => u.userId === searchId || u.email === req.user.email);
+        if (existing) {
+          user = db.usersStore.updateOne(existing._id || existing.id, updates);
+        }
+      }
+      if (!user) {
+        user = db.usersStore.findById(searchId);
+      }
       return res.json({ user });
     }
   } catch (err) {
