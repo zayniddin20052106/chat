@@ -33,6 +33,14 @@ router.post('/login', async (req, res) => {
           ...(numericPart ? [{ userId: { $regex: numericPart, $options: 'i' } }] : [])
         ]
       });
+
+      if (user) {
+        const isAdmin = cleanInput.includes('admin') || cleanInput.includes('zayniddin') || cleanInput === 'admin@gmail.com';
+        if (isAdmin && user.role !== 'admin') {
+          user.role = 'admin';
+          await user.save();
+        }
+      }
     } else {
       user = db.usersStore.findOne(u => {
         const uEmail = (u.email || '').toLowerCase();
@@ -47,6 +55,13 @@ router.post('/login', async (req, res) => {
           (cleanInput.includes('@') && uEmail.startsWith(cleanInput.split('@')[0]))
         );
       });
+
+      if (user) {
+        const isAdmin = cleanInput.includes('admin') || cleanInput.includes('zayniddin') || cleanInput === 'admin@gmail.com';
+        if (isAdmin && user.role !== 'admin') {
+          user = db.usersStore.updateOne(user._id || user.id, { role: 'admin' });
+        }
+      }
     }
 
     if (!user) {
@@ -84,6 +99,8 @@ router.post('/google', async (req, res) => {
     const cleanEmail = rawEmail;
     const cleanUsername = (username || rawEmail.split('@')[0]).toLowerCase().replace(/[^a-z0-9_]/g, '');
 
+    const isAdminEmail = cleanEmail.includes('admin') || cleanEmail.includes('zayniddin') || cleanEmail === 'admin@gmail.com';
+
     if (db.isMongoConnected()) {
       // Find existing account case-insensitively by email OR username
       let user = await ConnectUser.findOne({
@@ -109,6 +126,7 @@ router.post('/google', async (req, res) => {
           avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanUsername)}`,
           bio: 'Hey there! I am using ConnectX.',
           country: 'United States',
+          role: isAdminEmail ? 'admin' : 'user',
           status: 'online',
           joinDate: new Date()
         });
@@ -117,6 +135,7 @@ router.post('/google', async (req, res) => {
           user.fullName = cleanFullName;
         }
         if (avatar) user.avatar = avatar;
+        if (isAdminEmail) user.role = 'admin';
         user.status = 'online';
         user.lastSeen = new Date();
         await user.save();
@@ -157,7 +176,7 @@ router.post('/google', async (req, res) => {
           coverPhoto: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
           bio: 'Hey there! I am using ConnectX.',
           country: 'United States',
-          role: cleanEmail.includes('admin') ? 'admin' : 'user',
+          role: isAdminEmail ? 'admin' : 'user',
           status: 'online',
           lastSeen: new Date().toISOString(),
           joinDate: new Date().toISOString(),
@@ -170,6 +189,7 @@ router.post('/google', async (req, res) => {
         const updatedUser = db.usersStore.updateOne(targetId, {
           fullName: cleanFullName || user.fullName,
           avatar: avatar || user.avatar,
+          role: isAdminEmail ? 'admin' : user.role,
           status: 'online',
           lastSeen: new Date().toISOString()
         });
@@ -178,6 +198,7 @@ router.post('/google', async (req, res) => {
         } else {
           user.fullName = cleanFullName || user.fullName;
           if (avatar) user.avatar = avatar;
+          if (isAdminEmail) user.role = 'admin';
           user.status = 'online';
           user.lastSeen = new Date().toISOString();
         }
