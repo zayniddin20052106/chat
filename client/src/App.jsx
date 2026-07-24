@@ -44,6 +44,33 @@ export default function App() {
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showPWAInstallModal, setShowPWAInstallModal] = useState(false);
 
+  // Auto-verify token & restore account session on launch
+  useEffect(() => {
+    const verifyUserToken = async () => {
+      const token = localStorage.getItem('connectx_token');
+      if (!token) return;
+
+      try {
+        const res = await axios.get('/api/connect/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.data?.user) {
+          setCurrentUser(res.data.user);
+          localStorage.setItem('connectx_user', JSON.stringify(res.data.user));
+        }
+      } catch (err) {
+        console.error('Session verify failed:', err);
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          localStorage.removeItem('connectx_token');
+          localStorage.removeItem('connectx_user');
+          setCurrentUser(null);
+        }
+      }
+    };
+
+    verifyUserToken();
+  }, []);
+
   // Register PWA Service Worker & Request Notification Permission
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -212,6 +239,7 @@ export default function App() {
   const fetchInitialData = async () => {
     try {
       const token = localStorage.getItem('connectx_token');
+      if (!token) return;
       const res = await axios.get('/api/groups/list', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -220,7 +248,7 @@ export default function App() {
 
       if (!activeChat && res.data.users?.length > 0 && window.innerWidth >= 768) {
         const u = res.data.users[0];
-        setActiveChat({ id: u._id, name: u.fullName, username: u.username, type: 'private', avatar: u.avatar, userId: u.userId, bio: u.bio });
+        setActiveChat({ id: u._id || u.id, name: u.fullName, username: u.username, type: 'private', avatar: u.avatar, userId: u.userId, bio: u.bio });
       }
     } catch (err) {
       console.error('Failed to fetch initial data:', err);

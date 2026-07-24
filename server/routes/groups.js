@@ -3,7 +3,8 @@ const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const db = require('../db');
 const Group = require('../models/Group');
-const User = require('../models/User');
+const ConnectUser = require('../models/ConnectUser');
+const ConnectMessage = require('../models/ConnectMessage');
 
 // GET /api/groups/list (User's chats, groups, courses, channels & all users)
 router.get('/list', authenticateToken, async (req, res) => {
@@ -11,11 +12,11 @@ router.get('/list', authenticateToken, async (req, res) => {
     const userId = req.user.id;
 
     if (db.isMongoConnected()) {
-      const allUsers = await User.find({ _id: { $ne: userId } }).select('-password');
+      const allUsers = await ConnectUser.find({ _id: { $ne: userId } }).select('-password');
       const groups = await Group.find({
         $or: [
           { members: userId },
-          { type: 'channel' } // Public channels accessible to all
+          { type: 'channel' }
         ]
       });
 
@@ -23,9 +24,24 @@ router.get('/list', authenticateToken, async (req, res) => {
     } else {
       const allUsers = db.usersStore.find(u => u._id !== userId)
         .map(({ password, ...rest }) => rest);
-      
+
+      // Find all users this user has messaged with
+      const userMessages = db.messagesStore.find(m => m.senderId === userId || m.recipientId === userId);
+      const contactedUserIds = new Set();
+      userMessages.forEach(m => {
+        if (m.senderId && m.senderId !== userId) contactedUserIds.add(m.senderId);
+        if (m.recipientId && m.recipientId !== userId) contactedUserIds.add(m.recipientId);
+      });
+
+      // Sort users so contacted ones appear first
+      allUsers.sort((a, b) => {
+        const aContact = contactedUserIds.has(a._id || a.id) ? 1 : 0;
+        const bContact = contactedUserIds.has(b._id || b.id) ? 1 : 0;
+        return bContact - aContact;
+      });
+
       const groups = db.groupsStore.find(g => 
-        (g.members && g.members.includes(userId)) || g.type === 'channel'
+        (g.members && g.members.includes(userId)) || g.type === 'channel' || g.type === 'public_channel'
       );
 
       return res.json({ users: allUsers, groups });
@@ -46,11 +62,6 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const groupType = type || 'group';
 
-    // Channel creation rule: only teachers/admins can create channels or courses
-    if ((groupType === 'channel' || groupType === 'course') && req.user.role === 'student') {
-      return res.status(403).json({ error: 'Only Teachers and Admins can create Courses and Channels' });
-    }
-
     if (db.isMongoConnected()) {
       const newGroup = await Group.create({
         name,
@@ -58,7 +69,6 @@ router.post('/', authenticateToken, async (req, res) => {
         avatar: avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${name}`,
         type: groupType,
         creatorId: req.user.id,
-        teacherId: req.user.role === 'teacher' ? req.user.id : '',
         courseCode: courseCode || Math.random().toString(36).substring(2, 8).toUpperCase(),
         members: [req.user.id],
         admins: [req.user.id]
@@ -71,7 +81,6 @@ router.post('/', authenticateToken, async (req, res) => {
         avatar: avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${name}`,
         type: groupType,
         creatorId: req.user.id,
-        teacherId: req.user.role === 'teacher' ? req.user.id : '',
         courseCode: courseCode || Math.random().toString(36).substring(2, 8).toUpperCase(),
         members: [req.user.id],
         admins: [req.user.id]
