@@ -5,7 +5,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 
 const db = require('./db');
-const { connectMongo, isMongoConnected } = db;
+const { connectDB, isMongoConnected } = db;
 const { messagesStore, usersStore, groupsStore } = db;
 
 const app = express();
@@ -211,7 +211,7 @@ app.get('*', (req, res) => {
 const PORT = process.env.PORT || 5001;
 
 async function startApp() {
-  await connectMongo();
+  await connectDB();
   server.listen(PORT, () => {
     console.log(`🚀 ConnectX Platform Server running on http://localhost:${PORT}`);
   });
